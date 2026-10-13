@@ -1,5 +1,5 @@
 /* ──────────────────────────────────────────────────────────────────────────
-   Nabz MCP server core — the tools, the approval gate and the JSON-RPC
+   Earful MCP server core — the tools, the approval gate and the JSON-RPC
    handler, with nothing platform-specific inside.
 
    Two hosts run this file unchanged:
@@ -12,10 +12,10 @@
    once. Nothing in the browser is scripted to look like a refusal.
    ────────────────────────────────────────────────────────────────────────── */
 
-export const SERVER = { name: 'nabz-mcp', version: '1.1.0' };
+export const SERVER = { name: 'earful-mcp', version: '1.2.0' };
 export const PROTOCOL = '2024-11-05';
 
-export const DOC_HEADER = '# Product pulse log\n\nOne entry per weekly run. Appended by the Nabz MCP server after human approval.\n';
+export const DOC_HEADER = '# Product pulse log\n\nOne entry per weekly run. Appended by the Earful MCP server after human approval.\n';
 
 /** Key-ordered JSON, so the same arguments always hash the same. */
 export const stable = v => Array.isArray(v) ? '[' + v.map(stable).join(',') + ']'
@@ -54,7 +54,7 @@ ${(a.explanation_bullets || []).map(b => `- ${b}`).join('\n')}
 
 ${(a.source_links || []).map(u => `- ${u}`).join('\n')}
 
-_Logged via nabz-mcp after human approval._
+_Logged via earful-mcp after human approval._
 `;
 }
 

@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 /* ──────────────────────────────────────────────────────────────────────────
-   Drives the prototype in headless Chromium: runs the analysis, reads the
-   transcript the in-page MCP server produced, approves, and checks that the
-   document in the browser grew by exactly one entry while the moved and
-   replayed tokens were refused. Also writes the screenshots the README shows.
+   Drives the prototype in headless Chromium: lets it run on load, walks the
+   views, reads the transcript the in-page MCP server produced, approves, and
+   checks that the document in the browser grew by exactly one entry while
+   the moved and replayed tokens were refused. Writes the README screenshots.
 
      node eval/browser_check.js                 # needs playwright + chromium
      node eval/browser_check.js --shots         # also refresh docs/screenshots
@@ -20,6 +20,7 @@ import { fileURLToPath } from 'url';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SHOTS = process.argv.includes('--shots');
 const OUT = path.join(ROOT, 'docs', 'screenshots');
+const LOG_KEY = 'earful.product-pulse-log.md', DRAFT_KEY = 'earful.email-draft.eml';
 
 let pw;
 try { pw = await import('playwright'); }
@@ -41,6 +42,10 @@ const base = `http://127.0.0.1:${srv.address().port}/`;
 
 let pass = 0, fail = 0;
 const check = (name, ok, detail = '') => { if (ok) pass++; else fail++; console.log(`  ${ok ? 'ok  ' : 'FAIL'}  ${name}${detail ? '  ' + detail : ''}`); };
+const entries = page => page.evaluate(k => ((localStorage.getItem(k) || '').match(/^## Week ending /gm) || []).length, LOG_KEY);
+const waitConsole = (page, re) => page.waitForFunction(src => new RegExp(src).test(document.querySelector('#console-out')?.textContent || ''), re.source, { timeout: 30000 });
+const go = async (page, view) => { await page.evaluate(v => { location.hash = '#' + v; }, view); await page.waitForSelector(`#view-${view}:not([hidden])`); await page.waitForTimeout(150); };
+const shot = (page, name) => SHOTS ? page.screenshot({ path: path.join(OUT, name), fullPage: false }) : Promise.resolve();
 
 const browser = await pw.chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined });
 const page = await browser.newPage({ viewport: { width: 1280, height: 860 }, deviceScaleFactor: 1.5, reducedMotion: 'reduce' });
@@ -49,74 +54,119 @@ page.on('pageerror', e => errors.push(e.message));
 page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
 
 try {
-  await page.goto(base, { waitUntil: 'networkidle' });
-  if (SHOTS) { fs.mkdirSync(OUT, { recursive: true }); await page.screenshot({ path: path.join(OUT, '1-hero.png'), clip: { x: 0, y: 0, width: 1280, height: 760 } }); }
-
+  if (SHOTS) fs.mkdirSync(OUT, { recursive: true });
   console.log('\nPrototype in headless Chromium');
-  await page.click('#run');
-  await page.waitForSelector('#approve', { timeout: 30000 });
-  await page.waitForFunction(() => /waiting for a human/.test(document.querySelector('#console-out')?.textContent || ''), null, { timeout: 30000 });
+  await page.goto(base, { waitUntil: 'networkidle' });
+  await waitConsole(page, /waiting for a human/);
+  await page.waitForTimeout(200);
 
-  const transcript1 = await page.textContent('#console-out');
-  check('page ran the pipeline without errors', errors.length === 0, errors.join(' | '));
-  check('themes table rendered 5 rows', (await page.$$('#themes tbody tr')).length === 5);
+  /* overview */
+  check('page ran the pipeline on load without errors', errors.length === 0, errors.join(' | '));
+  check('five KPI tiles', (await page.$$('#kpis div')).length === 5);
+  check('rating mix has five bars', (await page.$$('#rating-mix .bar')).length === 5);
+  check('twelve weekly columns', (await page.$$('#weekly-volume .col')).length === 12);
+  check('five themes listed', (await page.$$('#theme-list li')).length === 5);
+  check('headline names the fee issue', /Brokerage|charge/i.test(await page.textContent('#headline')));
+  check('tab badges filled', /\d/.test(await page.textContent('#n-reviews')) && (await page.textContent('#n-pending')).trim() === '2');
+  await shot(page, '1-overview.png');
+
+  /* reviews */
+  await go(page, 'reviews');
+  const total = await page.textContent('#review-count');
+  check('reviews view lists the corpus', /^3,2\d\d of 3,2\d\d reviews/.test(total.trim()), total.trim());
+  check('first page shows 40 review cards', (await page.$$('#review-list .review')).length === 40);
+  await page.fill('#q', 'dp charge');
+  await page.waitForTimeout(150);
+  const n1 = await page.$$('#review-list .review');
+  check('search narrows the list and highlights the term', n1.length > 0 && n1.length < 40 && (await page.$$('#review-list mark')).length > 0, `${n1.length} cards`);
+  await shot(page, '2-reviews.png');
+  await page.fill('#q', '');
+  await page.click('#f-rating button[data-r="1"]');
+  await page.waitForTimeout(150);
+  check('rating filter applies', /1★/.test(await page.textContent('#review-count')) && (await page.$$('#review-list .review')).length > 0);
+  await page.click('#f-rating button[data-r=""]');
+  await page.click('#more');
+  await page.waitForTimeout(150);
+  check('show more appends a page', (await page.$$('#review-list .review')).length === 80);
+
+  /* themes */
+  await go(page, 'themes');
+  check('five theme cards', (await page.$$('#theme-cards .theme-card')).length === 5);
   check('three quotes rendered', (await page.$$('#quotes .quote')).length === 3);
+  await shot(page, '3-themes.png');
+  await page.click('#theme-cards [data-browse="charges"]');
+  await page.waitForSelector('#view-reviews:not([hidden])');
+  await page.waitForTimeout(150);
+  check('a theme card opens the reviews view filtered', /Charges users did not expect/.test(await page.textContent('#review-count')));
+
+  /* fee */
+  await go(page, 'fee');
+  check('fee table ranks six charges', (await page.$$('#fees tbody tr')).length === 6 && !!(await page.$('#fees tr.picked')));
+  check('confused reviews listed as evidence', (await page.$$('#fee-evidence .review')).length > 5);
+  await shot(page, '4-fee-issue.png');
+
+  /* pulse and explainer */
+  await go(page, 'pulse');
   check('pulse within budget', /^\d+ of 250 words$/.test((await page.textContent('#pulse-budget')).trim()) && !(await page.$('#pulse-budget.over')));
-  check('server initialised in-page', /serverInfo.*nabz-mcp/.test(transcript1));
+  check('pulse carries three quotes', (await page.$$('#pulse blockquote')).length === 3);
+  await shot(page, '5-pulse.png');
+  await go(page, 'explainer');
+  check('explainer has six bullets and two links', (await page.$$('#explainer > ul > li')).length === 6 && (await page.$$('#explainer .srcs a')).length === 2);
+  check('explainer carries Last checked', /Last checked: \d+ \w+ \d{4}/.test(await page.textContent('#explainer')));
+  await shot(page, '6-explainer.png');
+
+  /* the gate */
+  await go(page, 'approve');
+  const transcript1 = await page.textContent('#console-out');
+  check('server initialised in-page', /serverInfo.*earful-mcp/.test(transcript1));
   check('both tools listed', /notes\.append_entry.*email\.create_draft/.test(transcript1));
   const tokens = [...transcript1.matchAll(/"approval_token":"([0-9a-f]{32})"/g)].map(m => m[1]);
   check('both calls refused with a computed token', tokens.length === 2 && tokens[0] !== tokens[1], tokens.map(t => t.slice(0, 8) + '…').join(' '));
   check('nothing written before approval', !/"status":"appended"/.test(transcript1));
+  await shot(page, '7-approval-gate.png');
 
-  if (SHOTS) {
-    await page.$eval('#s-intel', e => e.scrollIntoView());
-    await page.screenshot({ path: path.join(OUT, '2-intelligence.png'), fullPage: false });
-    await page.$eval('#s-pulse', e => e.scrollIntoView());
-    await page.screenshot({ path: path.join(OUT, '3-pulse-and-explainer.png'), fullPage: false });
-    await page.$eval('#s-gate', e => e.scrollIntoView());
-    await page.screenshot({ path: path.join(OUT, '4-approval-gate.png'), fullPage: false });
-  }
-
-  const entriesBefore = await page.evaluate(() => ((localStorage.getItem('nabz.product-pulse-log.md') || '').match(/^## Week ending /gm) || []).length);
+  const before = await entries(page);
   await page.click('#approve');
   await page.waitForSelector('#results:not([hidden])', { timeout: 30000 });
-  await page.waitForFunction(() => /written once|unexpected/.test(document.querySelector('#console-out')?.textContent || ''), null, { timeout: 30000 });
+  await waitConsole(page, /written once|unexpected/);
   const transcript2 = await page.textContent('#console-out');
-  const entriesAfter = await page.evaluate(() => ((localStorage.getItem('nabz.product-pulse-log.md') || '').match(/^## Week ending /gm) || []).length);
-
+  const after = await entries(page);
   check('append succeeded once approved', /"status":"appended"/.test(transcript2));
   check('draft created, not sent', /"status":"draft_created".*"sent":false/.test(transcript2));
-  check('the document in the browser grew by one entry', entriesAfter === entriesBefore + 1, `${entriesBefore} → ${entriesAfter}`);
+  check('the document in the browser grew by one entry', after === before + 1, `${before} → ${after}`);
   check('an approved token moved to an edited payload was refused', /does not match these arguments/.test(transcript2));
   check('a replayed approval was refused', /already used/.test(transcript2));
   check('log entry rendered', /Week ending/.test(await page.textContent('#logentry')));
   check('email draft rendered with the subject from the brief', /Weekly Product Pulse \+ Customer Clarification — /.test(await page.textContent('#mail')));
-  check('.eml download carries X-Unsent', /X-Unsent: 1/.test(await page.evaluate(() => localStorage.getItem('nabz.email-draft.eml') || '')));
-  check('no page errors during the exchange', errors.length === 0, errors.join(' | '));
-
+  check('.eml download carries X-Unsent', /X-Unsent: 1/.test(await page.evaluate(k => localStorage.getItem(k) || '', DRAFT_KEY)));
+  check('no page errors during the walk', errors.length === 0, errors.join(' | '));
   if (SHOTS) {
     await page.$eval('#console', e => e.scrollIntoView({ block: 'start' }));
-    await page.screenshot({ path: path.join(OUT, '5-transcript.png'), fullPage: false });
+    await page.screenshot({ path: path.join(OUT, '8-transcript.png') });
     await page.$eval('#results', e => e.scrollIntoView({ block: 'start' }));
-    await page.screenshot({ path: path.join(OUT, '6-logged-and-drafted.png'), fullPage: false });
-    await page.$eval('#mail', e => e.scrollIntoView({ block: 'start' }));
-    await page.screenshot({ path: path.join(OUT, '7-email-draft.png'), fullPage: false });
+    await page.screenshot({ path: path.join(OUT, '9-logged-and-drafted.png') });
   }
 
   /* the reject path, on a fresh page, must leave the document alone */
   const page2 = await browser.newPage({ viewport: { width: 1280, height: 860 }, reducedMotion: 'reduce' });
-  await page2.goto(base, { waitUntil: 'networkidle' });
-  await page2.click('#run');
-  await page2.waitForSelector('#reject', { timeout: 30000 });
-  await page2.waitForFunction(() => /waiting for a human/.test(document.querySelector('#console-out')?.textContent || ''), null, { timeout: 30000 });
-  const b2 = await page2.evaluate(() => ((localStorage.getItem('nabz.product-pulse-log.md') || '').match(/^## Week ending /gm) || []).length);
+  await page2.goto(base + '#approve', { waitUntil: 'networkidle' });
+  await waitConsole(page2, /waiting for a human/);
+  const b2 = await entries(page2);
   await page2.click('#reject');
-  await page2.waitForFunction(() => /no document was touched/.test(document.querySelector('#console-out')?.textContent || ''), null, { timeout: 30000 });
-  const a2 = await page2.evaluate(() => ((localStorage.getItem('nabz.product-pulse-log.md') || '').match(/^## Week ending /gm) || []).length);
+  await waitConsole(page2, /no document was touched/);
+  const a2 = await entries(page2);
   const t2 = await page2.textContent('#console-out');
   check('reject: forged token refused by the server', /does not match these arguments/.test(t2));
   check('reject: document unchanged', a2 === b2, `${b2} → ${a2}`);
-  if (SHOTS) { await page2.$eval('#console', e => e.scrollIntoView({ block: 'start' })); await page2.screenshot({ path: path.join(OUT, '8-rejected.png'), fullPage: false }); }
+  if (SHOTS) { await page2.$eval('#console', e => e.scrollIntoView({ block: 'start' })); await page2.screenshot({ path: path.join(OUT, '10-rejected.png') }); }
+
+  /* phone width: no horizontal overflow */
+  const page3 = await browser.newPage({ viewport: { width: 390, height: 844 }, reducedMotion: 'reduce' });
+  await page3.goto(base, { waitUntil: 'networkidle' });
+  await waitConsole(page3, /waiting for a human/);
+  const over = await page3.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  check('no horizontal scroll at phone width', over <= 0, `${over}px`);
+  if (SHOTS) await page3.screenshot({ path: path.join(OUT, '11-phone.png') });
 } catch (e) {
   check('browser run completed', false, e.message);
 } finally {

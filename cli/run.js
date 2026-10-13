@@ -45,7 +45,7 @@ write('fee-signals.csv', ['fee,mentions,confused_mentions,confusion_rate_pct,con
   .concat(result.feeScores.map(f => [`"${f.label}"`, f.mentions, f.confused, f.confusionRate, f.confusionScore, f.avgRating].join(','))).join('\n') + '\n');
 write('run-trace.txt', result.trace.map((t, i) => `${i + 1}. ${t.stage}: ${t.detail}`).join('\n') + '\n');
 
-console.log(`Nabz ${result.version} — ${result.meta.corpusSize} reviews, ${result.meta.from} to ${result.meta.asOf}`);
+console.log(`Earful ${result.version} — ${result.meta.corpusSize} reviews, ${result.meta.from} to ${result.meta.asOf}`);
 result.trace.forEach((t, i) => console.log(`  ${i + 1}. ${t.stage}: ${t.detail}`));
 console.log(`\nWrote ${fs.readdirSync(OUT).length} files to out/`);
 console.log(`Pulse ${result.pulse.words}/250 words · explainer ${result.explainer.bullets.length}/6 bullets · fee issue: ${result.feeSignal.label}`);

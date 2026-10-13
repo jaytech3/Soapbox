@@ -20,5 +20,5 @@ jobs:
       - name: Headless run of the demo client, approving
         run: node mcp/client-demo.js --approve
         env:
-          NABZ_DOC: /tmp/nabz-ci/product-pulse-log.md
-          NABZ_OUT: /tmp/nabz-ci
+          EARFUL_DOC: /tmp/earful-ci/product-pulse-log.md
+          EARFUL_OUT: /tmp/earful-ci

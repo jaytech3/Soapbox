@@ -71,7 +71,7 @@ console.log(`   ${result.meta.corpusSize} reviews analysed, top theme "${result.
 console.log(`   pulse ${result.pulse.words} words, explainer ${result.explainer.bullets.length} bullets`);
 
 console.log(C.b('\n2. Connect'));
-const init = await rpc('initialize', { protocolVersion: '2024-11-05', capabilities: {}, clientInfo: { name: 'nabz-demo', version: '1.0.0' } });
+const init = await rpc('initialize', { protocolVersion: '2024-11-05', capabilities: {}, clientInfo: { name: 'earful-demo', version: '1.2.0' } });
 console.log(`   ${init.result.serverInfo.name} v${init.result.serverInfo.version}`);
 notify('notifications/initialized', {});
 const list = await rpc('tools/list', {});

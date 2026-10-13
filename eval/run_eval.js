@@ -101,11 +101,11 @@ console.log('\nApproval gating (live server over stdio)');
 await (async () => {
   /* The server is pointed at a scratch directory, so a test run never
      appends to docs/product-pulse-log.md, which holds only approved entries. */
-  const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'nabz-eval-'));
+  const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'earful-eval-'));
   const docPath = path.join(scratch, 'product-pulse-log.md');
   const proc = spawn('node', [path.join(ROOT, 'mcp', 'server.js')], {
     stdio: ['pipe', 'pipe', 'inherit'],
-    env: { ...process.env, NABZ_DOC: docPath, NABZ_OUT: scratch }
+    env: { ...process.env, EARFUL_DOC: docPath, EARFUL_OUT: scratch }
   });
   let id = 1, buf = '';
   const pending = new Map();
@@ -128,7 +128,7 @@ await (async () => {
   const call = async (name, args) => (await rpc('tools/call', { name, arguments: args })).result?.structuredContent;
 
   const init = await rpc('initialize', { protocolVersion: '2024-11-05', capabilities: {}, clientInfo: { name: 'eval', version: '1' } });
-  check('server initialises', init.result?.serverInfo?.name === 'nabz-mcp');
+  check('server initialises', init.result?.serverInfo?.name === 'earful-mcp');
   const tools = (await rpc('tools/list', {})).result.tools;
   check('exposes both tools', tools.length === 2 && tools.some(t => t.name === 'notes.append_entry') && tools.some(t => t.name === 'email.create_draft'));
   check('tools declare an input schema', tools.every(t => t.inputSchema?.type === 'object'));
