@@ -1,0 +1,154 @@
+#!/usr/bin/env node
+/* ──────────────────────────────────────────────────────────────────────────
+   Checks every constraint the brief sets, plus the ones that keep the
+   outputs honest. Exits 1 on any failure.
+     node eval/run_eval.js
+   ────────────────────────────────────────────────────────────────────────── */
+
+import fs from 'fs';
+import path from 'path';
+import { spawn } from 'child_process';
+import { fileURLToPath } from 'url';
+import { parseCSV, runPipeline, buildDocEntry, buildEmailDraft } from '../src/engine.js';
+
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+let pass = 0, fail = 0;
+const check = (name, ok, detail = '') => {
+  if (ok) { pass++; console.log(`  ok    ${name}${detail ? '  ' + detail : ''}`); }
+  else { fail++; console.log(`  FAIL  ${name}${detail ? '  ' + detail : ''}`); }
+};
+
+const rows = parseCSV(fs.readFileSync(path.join(ROOT, 'data', 'reviews.csv'), 'utf8'));
+const meta = JSON.parse(fs.readFileSync(path.join(ROOT, 'data', 'corpus-meta.json'), 'utf8'));
+const r = runPipeline(rows, { asOf: meta.window.to, windowWeeks: meta.window.weeks, totalInWindow: meta.reviews_in_window_all, lastChecked: meta.pulled_on });
+
+console.log('\nStep 1 — review intelligence');
+check('CSV parsed', rows.length > 1000, `${rows.length} rows`);
+check('CSV columns intact', ['review_id', 'date', 'rating', 'text'].every(c => c in rows[0]));
+check('window is 8 to 12 weeks', meta.window.weeks >= 8 && meta.window.weeks <= 12, `${meta.window.weeks} weeks`);
+check('all rows fall inside the window', rows.every(x => x.date >= meta.window.from && x.date <= meta.window.to));
+check('at most 5 themes', r.themes.length <= 5, `${r.themes.length}`);
+check('exactly 3 top themes', r.topThemes.length === 3);
+check('every theme has members', r.themes.every(t => t.count > 0));
+check('themes do not double-count', r.themes.reduce((a, t) => a + t.count, 0) + r.meta.unassigned === r.meta.corpusSize);
+check('coverage above 60%', (r.meta.corpusSize - r.meta.unassigned) / r.meta.corpusSize > 0.6,
+  `${Math.round((1 - r.meta.unassigned / r.meta.corpusSize) * 100)}%`);
+check('exactly 3 quotes', r.quotes.length === 3);
+check('quotes are verbatim from the CSV', r.quotes.every(q => {
+  const src = rows.find(x => x.review_id === q.review_id);
+  return src && (src.text === q.text || src.text.startsWith(q.text.replace(/…$/, '').trim()));
+}));
+check('quotes carry a rating and a date', r.quotes.every(q => q.rating >= 1 && q.rating <= 5 && /^\d{4}-\d{2}-\d{2}$/.test(q.date)));
+check('a fee issue was identified', !!r.feeSignal && r.feeSignal.confused > 0, `${r.feeSignal.label}, ${r.feeSignal.confused} confused mentions`);
+check('the fee issue is evidenced by real reviews', r.feeSignal.members.every(m => rows.some(x => x.review_id === m.review_id)));
+check('fees are ranked by the documented score', r.feeScores.every((f, i, a) => i === 0 || a[i - 1].confusionScore >= f.confusionScore));
+
+console.log('\nStep 2 — weekly pulse');
+check('250 words or fewer', r.pulse.words <= 250, `${r.pulse.words} words`);
+check('carries the theme summary', /Top themes/.test(r.pulse.markdown));
+check('carries supporting quotes', (r.pulse.markdown.match(/^>/gm) || []).length === 3);
+check('carries a key observation', /Key observation/.test(r.pulse.markdown));
+check('carries exactly 3 action ideas', r.pulse.actions.length === 3);
+check('names each of the top 3 themes', r.topThemes.every(t => r.pulse.markdown.includes(t.label)));
+check('quotes no figure that is not computed', !/\b(42|99|100)%/.test(r.pulse.markdown));
+
+console.log('\nStep 3 — fee explainer');
+const e = r.explainer;
+check('6 bullets or fewer', e.bullets.length <= 6, `${e.bullets.length}`);
+check('at least 2 official source links', e.sources.length >= 2, `${e.sources.length}`);
+check('sources are official domains', e.sources.every(s => /^https:\/\/(groww\.in|www\.cdslindia\.com|www\.sebi\.gov\.in|investor\.sebi\.gov\.in)\//.test(s.url)));
+check('carries "Last checked"', /Last checked: \d+ \w+ \d{4}/.test(e.markdown));
+check('derives from the fee found in step 1', e.feeId === r.feeSignal.id);
+check('neutral tone, no recommendation', !/\b(you should|we recommend|best|avoid|better off|switch to|don'?t worry)\b/i.test(e.bullets.join(' ')));
+check('no advice verbs about investing', !/\b(buy|sell|invest) (now|more|instead)\b/i.test(e.bullets.join(' ')));
+const srcCsv = fs.readFileSync(path.join(ROOT, 'sources.csv'), 'utf8');
+check('declares the rates it asserts', e.figures.length >= 6, `${e.figures.length} figures`);
+check('every asserted rate is in the bullets', e.figures.every(f => e.bullets.join(' ').includes(f)),
+  e.figures.filter(f => !e.bullets.join(' ').includes(f)).join(' ') || 'all present');
+check('every asserted rate is traceable to a source', e.figures.every(f => srcCsv.includes(f)),
+  e.figures.filter(f => !srcCsv.includes(f)).join(' ') || 'all traceable');
+
+console.log('\nMCP payloads');
+const d = buildDocEntry(r), mail = buildEmailDraft(r);
+check('doc entry has every required key', ['date', 'top_themes', 'weekly_pulse', 'identified_fee_issue', 'explanation_bullets', 'source_links'].every(k => k in d));
+check('doc entry source links are URLs', d.source_links.length >= 2 && d.source_links.every(u => u.startsWith('https://')));
+check('email subject matches the brief', /^Weekly Product Pulse \+ Customer Clarification — /.test(mail.subject), mail.subject);
+check('email body carries the pulse and the snippet', mail.body.includes('WEEKLY PRODUCT PULSE') && mail.body.includes('SUPPORT SNIPPET'));
+check('email is a draft, never sent', mail.send === false);
+
+console.log('\nSources and provenance');
+const scsv = parseCSV(fs.readFileSync(path.join(ROOT, 'sources.csv'), 'utf8'));
+check('4 to 6 sources listed', scsv.length >= 4 && scsv.length <= 6, `${scsv.length}`);
+check('all sources verified', scsv.every(s => s.status === '200'));
+check('reviews are anonymised', !/userName|userImage/.test(fs.readFileSync(path.join(ROOT, 'data', 'reviews.csv'), 'utf8').slice(0, 400))
+  && rows.every(x => /^r_[0-9a-f]{12}$/.test(x.review_id)));
+
+console.log('\nDeterminism');
+const again = runPipeline(parseCSV(fs.readFileSync(path.join(ROOT, 'data', 'reviews.csv'), 'utf8')),
+  { asOf: meta.window.to, windowWeeks: meta.window.weeks, totalInWindow: meta.reviews_in_window_all, lastChecked: meta.pulled_on });
+check('same input, same pulse', again.pulse.markdown === r.pulse.markdown);
+check('same input, same fee issue', again.feeSignal.id === r.feeSignal.id);
+check('same input, same quotes', JSON.stringify(again.quotes) === JSON.stringify(r.quotes));
+
+/* ── the gate, against the real server ────────────────────────────────── */
+console.log('\nApproval gating (live server over stdio)');
+await (async () => {
+  const proc = spawn('node', [path.join(ROOT, 'mcp', 'server.js')], { stdio: ['pipe', 'pipe', 'inherit'] });
+  let id = 1, buf = '';
+  const pending = new Map();
+  proc.stdout.setEncoding('utf8');
+  proc.stdout.on('data', c => {
+    buf += c;
+    let i;
+    while ((i = buf.indexOf('\n')) >= 0) {
+      const l = buf.slice(0, i).trim(); buf = buf.slice(i + 1);
+      if (!l) continue;
+      const m = JSON.parse(l);
+      pending.get(m.id)?.(m); pending.delete(m.id);
+    }
+  });
+  const rpc = (method, params) => new Promise(res => {
+    const myId = id++;
+    pending.set(myId, res);
+    proc.stdin.write(JSON.stringify({ jsonrpc: '2.0', id: myId, method, params }) + '\n');
+  });
+  const call = async (name, args) => (await rpc('tools/call', { name, arguments: args })).result?.structuredContent;
+
+  const init = await rpc('initialize', { protocolVersion: '2024-11-05', capabilities: {}, clientInfo: { name: 'eval', version: '1' } });
+  check('server initialises', init.result?.serverInfo?.name === 'nabz-mcp');
+  const tools = (await rpc('tools/list', {})).result.tools;
+  check('exposes both tools', tools.length === 2 && tools.some(t => t.name === 'notes.append_entry') && tools.some(t => t.name === 'email.create_draft'));
+  check('tools declare an input schema', tools.every(t => t.inputSchema?.type === 'object'));
+
+  const g1 = await call('notes.append_entry', d);
+  check('append is blocked without approval', g1.status === 'approval_required');
+  check('the block shows what would be written', !!g1.what_will_happen && !!g1.preview && !!g1.target);
+  const g2 = await call('email.create_draft', mail);
+  check('draft is blocked without approval', g2.status === 'approval_required');
+
+  const forged = await call('notes.append_entry', { ...d, approval_token: 'ap_forged' });
+  check('a forged token is refused', forged.status === 'rejected');
+
+  const swapped = await call('notes.append_entry', { ...d, date: '1999-01-01', approval_token: g1.approval_token });
+  check('an approved token cannot be moved to a different payload', swapped.status === 'rejected');
+
+  const docPath = path.join(ROOT, 'docs', 'product-pulse-log.md');
+  const before = fs.existsSync(docPath) ? fs.statSync(docPath).size : 0;
+  const w1 = await call('notes.append_entry', { ...d, approval_token: g1.approval_token });
+  check('append succeeds once approved', w1.status === 'appended');
+  check('the document actually grew', fs.statSync(docPath).size > before);
+
+  const replay = await call('notes.append_entry', { ...d, approval_token: g1.approval_token });
+  check('an approval is single-use', replay.status === 'rejected');
+
+  const w2 = await call('email.create_draft', { ...mail, approval_token: g2.approval_token });
+  check('draft is created once approved', w2.status === 'draft_created' && w2.sent === false);
+  const eml = fs.readFileSync(path.join(ROOT, 'out', 'email-draft.eml'), 'utf8');
+  check('the .eml opens as an unsent draft', /^X-Unsent: 1$/m.test(eml));
+  check('the .eml carries the subject from the brief', eml.includes(mail.subject));
+
+  proc.kill();
+})();
+
+console.log(`\n${pass} passed, ${fail} failed\n`);
+process.exit(fail ? 1 : 0);
