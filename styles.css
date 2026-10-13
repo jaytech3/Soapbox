@@ -107,6 +107,7 @@ main { max-width: 1120px; margin: 0 auto; padding: 0 24px 96px; }
 .btn[disabled] { opacity: .5; cursor: default; }
 .btn.done { color: var(--credit); border-color: #b4d8c8; background: var(--credit-tint); }
 .row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 20px; }
+.linkish { font: inherit; color: var(--indigo); background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 2px; }
 
 /* ── steps ── */
 .step { display: grid; grid-template-columns: 58px minmax(0, 1fr); gap: 0 20px; padding: 40px 0; border-top: 1px solid var(--rule); }
@@ -189,6 +190,7 @@ tr.picked .fname { font-weight: 600; color: var(--debit-2); }
 .explainer { border-top: 3px solid var(--ink); }
 .explainer .notice { font-size: 12.5px; color: var(--muted); border-top: 1px solid var(--rule-2); margin-top: 18px; padding-top: 14px; }
 .logentry { font-size: 14px; }
+.logentry h2 { margin-top: 0; }
 
 /* ── payloads and gate ── */
 .payloads { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; margin-top: 22px; }

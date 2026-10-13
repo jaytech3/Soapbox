@@ -135,11 +135,12 @@
     <div class="step-n" aria-hidden="true">4</div>
     <div class="step-body">
       <h2>Nothing is logged until this is approved</h2>
-      <p class="sub">Two MCP tools are waiting. The server has already refused both calls once and returned what it would write, with a single-use token. Read the payloads, then decide.</p>
+      <p class="sub">Two MCP tools are waiting. The server (the same <code>src/mcp-core.js</code> that <code>mcp/server.js</code> runs over stdio, hosted here in the page) has refused both calls once and returned what it would write, with a single-use token bound to that payload. Read the payloads, then decide.</p>
+      <p class="sub" id="log-state"></p>
 
       <div class="payloads">
         <div class="payload">
-          <header><span class="tool">notes.append_entry</span><span class="dest">docs/product-pulse-log.md</span></header>
+          <header><span class="tool">notes.append_entry</span><span class="dest">product-pulse-log.md, kept in this browser</span></header>
           <pre id="pay-doc"></pre>
         </div>
         <div class="payload">
@@ -164,6 +165,12 @@
       <div id="results" hidden>
         <h3>Appended to the product log</h3>
         <article class="doc logentry" id="logentry"></article>
+        <p class="sub" id="log-meta"></p>
+        <div class="row">
+          <button class="btn" data-copy="logentry">Copy the entry</button>
+          <a class="btn" id="dl-log" download="product-pulse-log.md">Download the whole log</a>
+          <a class="btn" href="docs/product-pulse-log.md">The on-disk log in the repo</a>
+        </div>
         <h3>Email draft</h3>
         <div class="mail" id="mail"></div>
         <div class="row">
@@ -172,6 +179,7 @@
           <a class="btn" id="gmail" target="_blank" rel="noopener">Open in Gmail</a>
         </div>
         <p class="sub">The .eml carries <code>X-Unsent: 1</code>, so a mail client opens it as an editable draft. Gmail opens a compose window. Neither sends.</p>
+        <p class="sub"><button class="linkish" id="clear-log" type="button">Clear this browser's log and draft</button> if you want to start from an empty document.</p>
       </div>
     </div>
   </section>

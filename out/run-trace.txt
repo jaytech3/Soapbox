@@ -4,5 +4,5 @@
 4. Rank: Top three by volume: Easy to start, easy to use (1299); Orders and app reliability (382); Support that does not close the loop (361)
 5. Detect: Scored each fee on reviews that name it and also signal not expecting it (confused x rate): brokerage 1.53, auto square-off charge 1, MTF interest 0.89, account and platform fees 0.89 — picked brokerage
 6. Quote: 3 verbatim quotes: 2 from the 241 charge-related reviews, 1 from Orders and app reliability; one per week, profanity and all-caps reviews excluded
-7. Pulse: 245 words (limit 250)
+7. Pulse: 248 words (limit 250)
 8. Explainer: 6 bullets (limit 6), 2 official links

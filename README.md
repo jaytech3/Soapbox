@@ -16,6 +16,12 @@ Built for the **NextLeap PM Fellowship, Milestone 5 (RAGs & Context Engineering)
 | Source list | [sources.csv](sources.csv) (6 URLs) |
 | Fee explainer | [out/fee-explainer.md](out/fee-explainer.md) |
 | Machine-readable payloads | [out/doc-entry.json](out/doc-entry.json), [out/fee-signals.csv](out/fee-signals.csv), [out/themes.csv](out/themes.csv) |
+| Screenshots of the prototype | [docs/screenshots/](docs/screenshots/) (hero, themes, pulse, gate, transcript, log entry, email draft, rejection) |
+| Checks | [eval/run_eval.js](eval/run_eval.js) (64, headless) and [eval/browser_check.js](eval/browser_check.js) (19, in Chromium) |
+
+<p align="center">
+  <img src="docs/screenshots/4-approval-gate.png" alt="Step 4 of the prototype: the two payloads the MCP server would write, an Approve and a Reject button, and the start of the JSON-RPC transcript showing both calls refused with approval_required and a token" width="900">
+</p>
 
 ---
 
@@ -44,10 +50,11 @@ node mcp/client-demo.js --reject   # shows that nothing is written on a no
 node mcp/server.js                 # the server alone, for your own MCP client
 ```
 
-**The checks.** 57 of them, covering every constraint in the brief plus the gate, run against the live server:
+**The checks.** 64 of them, covering every constraint in the brief plus the gate, run against the live server in a scratch directory so a test run never touches the real log. A further 19 drive the prototype itself in headless Chromium, approve, and read the document back:
 
 ```bash
-node eval/run_eval.js    # exit 1 on any failure
+node eval/run_eval.js            # exit 1 on any failure
+node eval/browser_check.js       # needs playwright + chromium; skips cleanly without them
 ```
 
 ---
@@ -77,7 +84,13 @@ Three properties make the gate worth something, and each has a test:
 - **Approvals are single-use.** A replayed call is refused, so a retry loop cannot append the same entry five times.
 - **The secret is minted per process.** Tokens do not survive a restart.
 
-In the browser prototype, step 4 does the same exchange against an in-page client and prints the transcript, because GitHub Pages serves static files and cannot host a stdio process. The payloads, the refusals, the token and the replay check are identical to what `mcp/client-demo.js` produces against the real server — run that to see it write to disk.
+**The browser runs the same server.** GitHub Pages serves static files and cannot host a stdio process, so the tools, the gate and the JSON-RPC handler live in [`src/mcp-core.js`](src/mcp-core.js) with nothing platform-specific inside. `mcp/server.js` wraps that core in stdio, Node's HMAC and the filesystem; `app.js` wraps the same core in an in-page transport, Web Crypto's HMAC and this browser's storage, which stands in for the document and the draft. Step 4 of the prototype prints the exchange as it happens: the two refusals, the computed tokens, the writes after approval, and then two checks the gate has to pass in front of you — the approved token resent with an edited date, and the same token replayed — both refused by the server, not by a line in the page. Reject instead, and the client tries a forged token; the log in your browser stays the size it was. Nothing in the transcript is scripted; [`eval/browser_check.js`](eval/browser_check.js) asserts exactly that.
+
+<p align="center">
+  <img src="docs/screenshots/5-transcript.png" alt="The MCP transcript after approval: appended, draft_created with sent false, then an edited payload and a replay both rejected, followed by the appended log entry" width="900">
+</p>
+
+The document the page appends to survives a reload and can be downloaded whole; on a machine, the same call appends to `docs/product-pulse-log.md`, which is the file in this repo. The email draft is an `.eml` with `X-Unsent: 1`, so a mail client opens it as an editable draft, and an "Open in Gmail" link fills a compose window. Neither path can send.
 
 ---
 
@@ -105,7 +118,7 @@ So the problem is not the price. Every figure is published on Groww's pricing pa
 
 ## 4. The pipeline
 
-`src/engine.js` is one module with no dependencies, and both the web prototype and `cli/run.js` import it unchanged — the page cannot drift from the file the checks run against.
+`src/engine.js` is one module with no dependencies, and both the web prototype and `cli/run.js` import it unchanged — the page cannot drift from the file the checks run against. The same holds for the MCP side: `src/mcp-core.js` is imported by both `mcp/server.js` and `app.js`.
 
 ```
 data/reviews.csv  3,220 reviews, 21 Jul – 12 Oct 2026, text only
@@ -120,8 +133,8 @@ data/reviews.csv  3,220 reviews, 21 Jul – 12 Oct 2026, text only
       └─ 8  Explainer     ≤6 bullets, 2 official links, "Last checked"
       │
       ▼
-  buildDocEntry()      → notes.append_entry      ┐ both gated
-  buildEmailDraft()    → email.create_draft      ┘ behind approval
+  buildDocEntry()      → notes.append_entry      ┐ both gated behind approval
+  buildEmailDraft()    → email.create_draft      ┘ in src/mcp-core.js
 ```
 
 No model is called anywhere. The same CSV always produces the same note, the same quotes and the same fee — there is a determinism test for exactly that. For a weekly artefact that goes to a team and to customers, reproducibility was worth more than fluency, and it means every sentence can be traced to a row.
@@ -154,7 +167,11 @@ The engine declares the rates it asserts (`explainer.figures`), and `eval/run_ev
 
 **Ranking fees by mention count.** Brokerage wins any volume contest because everyone knows the word. The question is not which charge is discussed most, it is which is *misunderstood* most, so the score multiplies volume by the share of mentions carrying a confusion marker.
 
-**Letting the pulse run long.** The first draft was 466 words. Rather than hand-trimming once, the builder renders at decreasing quote lengths until it fits 250, so the limit holds even when the input changes.
+**Cutting quotes from the start.** The first pulse trimmed each verbatim to its opening words, which turned "hello, I have been using this app for the last 1 year and everything has been going smoothly…" into a quote that said nothing. The picker now records the word where the review first names the fee or the theme, and the pulse excerpts the clause around it, so the same review reads "…from July 2026 this app is taking too much brokerage I don't know why??". The full review stays in the doc entry, and a check confirms every excerpt is a substring of the CSV.
+
+**Scoring a theme quote on confusion markers.** The reliability quote was once picked because it contained the word "hidden" — a review about navigation buttons that hide on the chart. Each quote is now scored on what it is for: fee quotes on confusion markers and rupee figures, theme quotes on that theme's own patterns.
+
+**Letting the pulse run long.** The first draft was 466 words. Rather than hand-trimming once, the builder renders at decreasing quote lengths until it fits 250, so the limit holds even when the input changes. The fixed text was then cut back so the quotes keep about twenty words each; they are the part a reader remembers.
 
 ---
 

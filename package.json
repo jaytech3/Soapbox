@@ -1,6 +1,6 @@
 {
   "name": "nabz",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "description": "Turns public app reviews into a weekly product pulse and a facts-only fee explainer, logged through MCP behind a human approval step.",
   "type": "module",
@@ -9,7 +9,9 @@
     "run:pipeline": "node cli/run.js",
     "mcp:demo": "node mcp/client-demo.js",
     "mcp:server": "node mcp/server.js",
-    "test": "node eval/run_eval.js"
+    "test": "node eval/run_eval.js",
+    "test:browser": "node eval/browser_check.js",
+    "screenshots": "node eval/browser_check.js --shots"
   },
   "license": "MIT"
 }

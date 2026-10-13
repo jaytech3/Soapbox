@@ -6,6 +6,7 @@
    ────────────────────────────────────────────────────────────────────────── */
 
 import fs from 'fs';
+import os from 'os';
 import path from 'path';
 import { spawn } from 'child_process';
 import { fileURLToPath } from 'url';
@@ -51,6 +52,11 @@ check('carries a key observation', /Key observation/.test(r.pulse.markdown));
 check('carries exactly 3 action ideas', r.pulse.actions.length === 3);
 check('names each of the top 3 themes', r.topThemes.every(t => r.pulse.markdown.includes(t.label)));
 check('quotes no figure that is not computed', !/\b(42|99|100)%/.test(r.pulse.markdown));
+check('pulse quotes are verbatim excerpts of the CSV', (r.pulse.markdown.match(/^> "(.*)" — /gm) || []).every(l => {
+  const body = l.replace(/^> "…?/, '').replace(/…?" — $/, '');
+  return rows.some(x => x.text.includes(body));
+}));
+check('pulse quotes keep at least 10 words each', (r.pulse.markdown.match(/^> "(.*)" — /gm) || []).every(l => l.split(/\s+/).length >= 12));
 
 console.log('\nStep 3 — fee explainer');
 const e = r.explainer;
@@ -93,7 +99,14 @@ check('same input, same quotes', JSON.stringify(again.quotes) === JSON.stringify
 /* ── the gate, against the real server ────────────────────────────────── */
 console.log('\nApproval gating (live server over stdio)');
 await (async () => {
-  const proc = spawn('node', [path.join(ROOT, 'mcp', 'server.js')], { stdio: ['pipe', 'pipe', 'inherit'] });
+  /* The server is pointed at a scratch directory, so a test run never
+     appends to docs/product-pulse-log.md, which holds only approved entries. */
+  const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'nabz-eval-'));
+  const docPath = path.join(scratch, 'product-pulse-log.md');
+  const proc = spawn('node', [path.join(ROOT, 'mcp', 'server.js')], {
+    stdio: ['pipe', 'pipe', 'inherit'],
+    env: { ...process.env, NABZ_DOC: docPath, NABZ_OUT: scratch }
+  });
   let id = 1, buf = '';
   const pending = new Map();
   proc.stdout.setEncoding('utf8');
@@ -132,23 +145,37 @@ await (async () => {
   const swapped = await call('notes.append_entry', { ...d, date: '1999-01-01', approval_token: g1.approval_token });
   check('an approved token cannot be moved to a different payload', swapped.status === 'rejected');
 
-  const docPath = path.join(ROOT, 'docs', 'product-pulse-log.md');
   const before = fs.existsSync(docPath) ? fs.statSync(docPath).size : 0;
   const w1 = await call('notes.append_entry', { ...d, approval_token: g1.approval_token });
   check('append succeeds once approved', w1.status === 'appended');
   check('the document actually grew', fs.statSync(docPath).size > before);
+  check('the entry carries every field of the payload', (() => {
+    const t = fs.readFileSync(docPath, 'utf8');
+    return t.includes(`## Week ending ${d.date}`) && d.top_themes.every(x => t.includes(x.theme)) && t.includes(d.identified_fee_issue.fee)
+      && d.explanation_bullets.every(b => t.includes(b)) && d.source_links.every(u => t.includes(u)) && t.includes(d.weekly_pulse.trim());
+  })());
 
   const replay = await call('notes.append_entry', { ...d, approval_token: g1.approval_token });
   check('an approval is single-use', replay.status === 'rejected');
 
   const w2 = await call('email.create_draft', { ...mail, approval_token: g2.approval_token });
   check('draft is created once approved', w2.status === 'draft_created' && w2.sent === false);
-  const eml = fs.readFileSync(path.join(ROOT, 'out', 'email-draft.eml'), 'utf8');
+  const eml = fs.readFileSync(path.join(scratch, 'email-draft.eml'), 'utf8');
   check('the .eml opens as an unsent draft', /^X-Unsent: 1$/m.test(eml));
   check('the .eml carries the subject from the brief', eml.includes(mail.subject));
 
   proc.kill();
+  fs.rmSync(scratch, { recursive: true, force: true });
 })();
+
+/* ── the browser runs the same server ──────────────────────────────────── */
+console.log('\nOne server, two hosts');
+const appSrc = fs.readFileSync(path.join(ROOT, 'app.js'), 'utf8');
+const nodeSrc = fs.readFileSync(path.join(ROOT, 'mcp', 'server.js'), 'utf8');
+check('the Node server imports the shared core', /from '\.\.\/src\/mcp-core\.js'/.test(nodeSrc));
+check('the browser prototype imports the same core', /from '\.\/src\/mcp-core\.js'/.test(appSrc));
+check('the browser does not script its own refusals', !/status":"rejected|status":"approval_required|"appended"/.test(appSrc));
+check('the shared core has no platform imports', !/^import /m.test(fs.readFileSync(path.join(ROOT, 'src', 'mcp-core.js'), 'utf8')));
 
 console.log(`\n${pass} passed, ${fail} failed\n`);
 process.exit(fail ? 1 : 0);

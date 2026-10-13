@@ -1,13 +1,13 @@
 /* ──────────────────────────────────────────────────────────────────────────
    Nabz — review intelligence engine
    One module, used unchanged by the browser prototype (index.html) and by
-   the headless runner (cli/run.mjs). No dependencies, no network, no LLM:
+   the headless runner (cli/run.js). No dependencies, no network, no LLM:
    every number below is computed from data/reviews.csv, so two runs of the
    same CSV always produce the same pulse, the same explainer and the same
    MCP payloads.
    ────────────────────────────────────────────────────────────────────────── */
 
-export const VERSION = '1.0.0';
+export const VERSION = '1.1.0';
 
 /* ── 1. CSV parsing ─────────────────────────────────────────────────────── */
 
@@ -239,16 +239,26 @@ function distinctiveTerms(members, all, n = 6) {
   return out.sort((a, b) => b.score - a.score).slice(0, n);
 }
 
-/** A quote a PM can paste into a deck: long enough to carry the point, short enough to read. */
-function pickQuotes(members, feeEntity, count = 3) {
+/** A quote a PM can paste into a deck: long enough to carry the point, short enough to read.
+    `focus` says what the quote is for: a fee entity (score the confusion it
+    voices and the figures it cites) or a theme (score how squarely it hits
+    that theme's own patterns), so a reliability quote is never chosen for
+    containing the word "hidden". */
+function pickQuotes(members, focus, count = 3) {
   const scored = members.map(r => {
     const len = r.text.length;
     let s = 0;
-    s += countAny(CONFUSION_MARKERS, r.text) * 3;
-    if (feeEntity && any(feeEntity.patterns, r.text)) s += 6;
-    if (len >= 90 && len <= 320) s += 4; else if (len > 320) s -= 2; else s -= 3;
+    if (focus?.kind === 'fee') {
+      s += countAny(CONFUSION_MARKERS, r.text) * 3;
+      if (any(focus.patterns, r.text)) s += 6;
+      if (/(₹|\brs\.?|\binr)\s*\d|\d[\d,]*\s*(rs|rupees?|inr|₹)/i.test(r.text)) s += 5;   // a figure makes the point concrete
+    } else if (focus?.kind === 'theme') {
+      s += Math.min(countAny(focus.must, r.text), 3) * 3 + countAny(focus.lift, r.text) * 2;
+      if (/\b(lost|loss|money|order|placed|sell|buy)\b/i.test(r.text)) s += 2;           // consequence, not just annoyance
+    }
+    if (len >= 90 && len <= 320) s += 4; else if (len > 320) s += 2; else s -= 3;
     if (r.rating <= 2) s += 2;
-    s += Math.min(r.thumbs_up, 6) * 0.5;
+    s += Math.min(r.thumbs_up, 10) * 0.4;                                             // other users agreed
     if (/[ऀ-ॿ]/.test(r.text)) s -= 1.5;            // prefer quotes a global reader can read
     if (/\b(fuck|f u |bloody|bastard|ghatiya|chutiya|bc\b|mc\b)/i.test(r.text)) s -= 8;
     if (/^[^a-z]*$/i.test(r.text)) s -= 5;
@@ -261,11 +271,42 @@ function pickQuotes(members, feeEntity, count = 3) {
     if (out.length >= count) break;
     if (usedWeeks.has(week(r.date))) continue;                // spread across the window
     usedWeeks.add(week(r.date));
+    const pats = focus?.kind === 'fee' ? [...focus.patterns, ...CONFUSION_MARKERS] : focus?.kind === 'theme' ? [...focus.must, ...focus.lift] : [];
     out.push({
       review_id: r.review_id, date: r.date, rating: r.rating,
-      text: r.text.length > 300 ? r.text.slice(0, 297).replace(/\s+\S*$/, '') + '…' : r.text
+      text: r.text.length > 300 ? r.text.slice(0, 297).replace(/\s+\S*$/, '') + '…' : r.text,
+      keyAt: keyWord(r.text, pats)
     });
   }
+  return out;
+}
+
+/** Index of the word where the first focus pattern matches, so an excerpt can
+    start at the clause that makes the point rather than at "hello, I have". */
+function keyWord(text, patterns) {
+  let at = Infinity;
+  for (const p of patterns) { const m = p.exec(text); if (m && m.index < at) at = m.index; }
+  if (at === Infinity) return 0;
+  return text.slice(0, at).trim().split(/\s+/).filter(Boolean).length;
+}
+
+/** Verbatim excerpt of at most `cap` words that contains the key word: starts
+    at the earliest clause boundary from which the key word still fits, ends at
+    a sentence end when one falls near the budget, and marks any cut with …. */
+function excerpt(text, cap, keyAt = 0) {
+  const words = text.replace(/…$/, '').trim().split(/\s+/);
+  const cut = /…$/.test(text);
+  if (words.length <= cap) return cut ? text : words.join(' ');
+  const mi = Math.min(keyAt, words.length - 1);
+  const boundary = i => i === 0 || /[.!?,;:]$/.test(words[i - 1]);
+  let start = Math.max(0, mi - 4);
+  for (let i = Math.max(0, mi - (cap - 5)); i <= mi; i++) if (boundary(i)) { start = i; break; }
+  let end = Math.min(words.length, start + cap);
+  for (let i = end - 1; i >= Math.max(start + 1, end - 6); i--) if (/[.!?]$/.test(words[i])) { end = i + 1; break; }
+  let out = words.slice(start, end).join(' ');
+  const endsSentence = /[.!?]$/.test(out);
+  if ((end < words.length || cut) && !endsSentence) out = out.replace(/[,;:—-]+$/, '') + '…';
+  if (start > 0) out = '…' + out;
   return out;
 }
 
@@ -355,9 +396,10 @@ export function runPipeline(rows, opts = {}) {
          negative theme, so the three together support the note they sit in */
   const leadNeg = themes.find(t => t.polarity === 'negative');
   const feePool = [...new Set([...feeSignal.members, ...themes.find(t => t.id === 'charges').members])];
-  const feeQuotes = pickQuotes(feePool, feeSignal.entity, 2);
+  const feeQuotes = pickQuotes(feePool, { kind: 'fee', patterns: feeSignal.entity.patterns }, 2);
   const taken = new Set(feeQuotes.map(q => q.review_id));
-  const themeQuote = pickQuotes(leadNeg.members.filter(r => !taken.has(r.review_id)), null, 1);
+  const leadDef = THEMES.find(t => t.id === leadNeg.id);
+  const themeQuote = pickQuotes(leadNeg.members.filter(r => !taken.has(r.review_id)), { kind: 'theme', must: leadDef.must, lift: leadDef.lift }, 1);
   const quotes = [...feeQuotes, ...themeQuote];
   step('Quote', `3 verbatim quotes: 2 from the ${feePool.length} charge-related reviews, 1 from ${leadNeg.label}; one per week, profanity and all-caps reviews excluded`);
 
@@ -408,32 +450,28 @@ function buildPulse({ themes, topThemes, quotes, feeSignal, corpus, windowed, fr
     : 'flat';
 
   const actions = [
-    'Itemise the deduction on the order confirmation, not only the next day\'s contract note: brokerage, DP charge, CDSL, GST.',
-    'Show the rupee figure live as quantity is entered, including the ₹0 case below ₹100 of debit value.',
-    'Ship the fee explainer below as the canned support reply, and track repeat contacts on charges.'
+    'Itemise brokerage, DP charge, CDSL and GST on the order confirmation, not only the next-day contract note.',
+    'Show the rupee cost live as quantity is entered, including the ₹0 case under ₹100 of debit value.',
+    'Ship the explainer below as the canned support reply and track repeat contacts about charges.'
   ];
 
   const themeLines = topThemes.map((t, i) =>
-    `${i + 1}. **${t.label}** — ${t.count} reviews, ${t.share}%, ${t.avgRating.toFixed(2)}★.`
+    `${i + 1}. **${t.label}**: ${t.count.toLocaleString('en-IN')} reviews (${t.share}%), ${t.avgRating.toFixed(2)}★.`
   ).join('\n');
 
   const chargeTheme = themes.find(t => t.id === 'charges');
   const chargeRank = themes.indexOf(chargeTheme) + 1;
-  const observation = `**Key observation.** ${lead.label} leads the negative themes (${lead.count} reviews, ${lead.avgRating.toFixed(2)}★). The most fixable signal sits one rank below, in charges (#${chargeRank}, ${chargeTheme.count} reviews): ${feeSignal.confused} of the ${feeSignal.mentions} reviews naming ${feeSignal.short} also say they did not expect what was taken — "hidden", "extra", "bina bataye", and several attribute the whole deduction to brokerage alone. Every charge is published, so this is placement, not pricing. Mentions are ${trend} week on week.`;
+  const observation = `**Key observation.** ${lead.label} is the largest negative theme (${lead.count} reviews, ${lead.avgRating.toFixed(2)}★). The most fixable one is charges (#${chargeRank}, ${chargeTheme.count} reviews): ${feeSignal.confused} of ${feeSignal.mentions} reviews naming ${feeSignal.short} did not expect the deduction ("hidden", "extra", "bina bataye"). Every charge is published; this is placement, not pricing. Mentions ${trend} week on week.`;
 
   /* The brief caps this note at 250 words. Quotes carry the most compressible
      text, so they are trimmed in fixed steps until the note fits — same input,
      same output, and the full verbatim stays in the doc entry. */
   const render = cap => {
-    const quoteLines = quotes.map(q => {
-      const w = q.text.split(/\s+/);
-      const t = w.length > cap ? w.slice(0, cap).join(' ').replace(/[,;:.!—-]+$/, '') + '…' : q.text;
-      return `> "${t}" — ${q.rating}★, ${fmtDate(q.date)}`;
-    }).join('\n\n');
+    const quoteLines = quotes.map(q => `> "${excerpt(q.text, cap, q.keyAt)}" — ${q.rating}★, ${fmtDate(q.date)}`).join('\n\n');
 
     return `# Weekly product pulse — ${fmtDate(asOf)}
 
-**Scope.** ${(opts.totalInWindow || windowed.length).toLocaleString('en-IN')} Google Play reviews for Groww, ${fmtDate(from)} to ${fmtDate(asOf)}; ${corpus.length.toLocaleString('en-IN')} carried text and were analysed.
+**Scope.** ${(opts.totalInWindow || windowed.length).toLocaleString('en-IN')} Google Play reviews, ${fmtDate(from)} to ${fmtDate(asOf)}; ${corpus.length.toLocaleString('en-IN')} with text analysed.
 
 **Top themes**
 
@@ -455,7 +493,7 @@ ${observation}
 
   const count = s => WORDS(s.replace(/[#*>]/g, ' '));
   let body = '', words = 0;
-  for (const cap of [26, 22, 18, 15, 12, 10]) {
+  for (const cap of [28, 26, 24, 22, 20, 18, 16, 14, 12, 10]) {
     body = render(cap); words = count(body);
     if (words <= 250) break;
   }
