@@ -4,6 +4,9 @@
 
      node cli/run.js            # analyse and write out/
      node cli/run.js --json     # print the whole result as JSON
+     SOAPBOX_AI_KEY=… node cli/run.js --ai gemini [--model name]
+                                # also write AI drafts to out/ai/ (openai and
+                                # anthropic work the same way)
    ────────────────────────────────────────────────────────────────────────── */
 
 import fs from 'fs';
@@ -49,4 +52,33 @@ console.log(`Soapbox ${result.version} — ${result.meta.corpusSize} reviews, ${
 result.trace.forEach((t, i) => console.log(`  ${i + 1}. ${t.stage}: ${t.detail}`));
 console.log(`\nWrote ${fs.readdirSync(OUT).length} files to out/`);
 console.log(`Pulse ${result.pulse.words}/250 words · explainer ${result.explainer.bullets.length}/6 bullets · fee issue: ${result.feeSignal.label}`);
+const ai = process.argv.indexOf('--ai');
+if (ai > -1) {
+  const { writeWithModel, makeTransport, PROVIDERS } = await import('../src/ai.js');
+  const provider = process.argv[ai + 1];
+  const mi = process.argv.indexOf('--model');
+  const model = mi > -1 ? process.argv[mi + 1] : PROVIDERS[provider]?.model;
+  const key = process.env.SOAPBOX_AI_KEY;
+  if (!PROVIDERS[provider]) { console.error(`\n--ai needs one of: ${Object.keys(PROVIDERS).join(', ')}`); process.exit(1); }
+  if (!key) { console.error('\nSet SOAPBOX_AI_KEY to an API key for that provider.'); process.exit(1); }
+  console.log(`\nAI writer: ${PROVIDERS[provider].label}, ${model}`);
+  const res = await writeWithModel({
+    result, sourcesText: fs.readFileSync(path.join(ROOT, 'sources.csv'), 'utf8'), lastChecked: meta.pulled_on,
+    transport: makeTransport({ provider, model, key }),
+    onEvent: e => { if (e.type === 'checked') console.log(`  draft ${e.n}: ${e.ok ? 'passed every check' : e.checks.filter(c => !c.ok).map(c => c.label).join('; ')}`); }
+  });
+  const AI_OUT = path.join(OUT, 'ai');
+  fs.mkdirSync(AI_OUT, { recursive: true });
+  fs.writeFileSync(path.join(AI_OUT, 'context.json'), res.context.json + '\n');
+  fs.writeFileSync(path.join(AI_OUT, 'attempts.json'), JSON.stringify({ provider, model, status: res.status, attempts: res.attempts.map(a => ({ n: a.n, checks: a.checks, error: a.error, reply: a.raw })) }, null, 2) + '\n');
+  if (res.status === 'accepted') {
+    fs.writeFileSync(path.join(AI_OUT, 'weekly-pulse.md'), res.output.pulse.markdown);
+    fs.writeFileSync(path.join(AI_OUT, 'fee-explainer.md'), res.output.explainer.markdown);
+    fs.writeFileSync(path.join(AI_OUT, 'doc-entry.json'), JSON.stringify(buildDocEntry(res.output), null, 2) + '\n');
+    console.log(`  accepted: pulse ${res.output.pulse.words}/250 words, explainer ${res.output.explainer.bullets.length}/6 bullets → out/ai/`);
+  } else {
+    console.log(`  ${res.status === 'error' ? res.error : 'no draft passed'}; the rule-based outputs in out/ stay as they are`);
+  }
+}
+
 console.log(`\nTo log these outputs through MCP with an approval step: node mcp/client-demo.js`);

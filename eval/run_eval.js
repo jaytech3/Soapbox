@@ -168,6 +168,62 @@ await (async () => {
   fs.rmSync(scratch, { recursive: true, force: true });
 })();
 
+/* ── the AI writer, against a stand-in model ───────────────────────────── */
+await (async () => {
+  console.log('\nAI writer (stand-in model, no network)');
+  const { buildContext, writeWithModel, checkDraft, SYSTEM } = await import('../src/ai.js');
+  const srcText = fs.readFileSync(path.join(ROOT, 'sources.csv'), 'utf8');
+  const c = buildContext(r, srcText, { lastChecked: meta.pulled_on });
+  check('context carries all 5 themes with retrieved evidence', c.ctx.themes.length === r.themes.length && c.ctx.themes.slice(0, 3).every(t => t.evidence.length >= 3));
+  check('context carries evidence for the fee issue', c.ctx.fee_issue.evidence.length >= 5, `${c.ctx.fee_issue.evidence.length} reviews`);
+  check('every evidence review is a real row', [...c.index.keys()].every(id => rows.some(x => x.review_id === id)));
+  check('context carries the official source facts', c.ctx.official_sources.length === 6 && c.ctx.official_sources.every(s => s.facts));
+  check('context identifies reviewers by id only', !/display_?name|author|user_?name|avatar/i.test(c.json));
+  check('context stays inside a small budget', c.json.length < 24000, `${c.json.length} chars`);
+  check('instructions forbid invented numbers, quotes and sources', /Never invent a number, a review or a source/.test(SYSTEM));
+
+  const lead = c.ctx.themes.find(t => t.label === r.themes.find(x => x.polarity === 'negative').label);
+  const good = {
+    observation: `Charges are the most fixable complaint: ${r.feeSignal.confused} of ${r.feeSignal.mentions} reviews naming brokerage did not expect the deduction, while ${lead.label} is the largest negative theme.`,
+    actions: ['Show the DP charge and GST on the order confirmation.', 'Show the rupee cost live as quantity is typed.', 'Use the explainer as the support reply for charge questions.'],
+    quote_ids: [c.ctx.fee_issue.evidence[0].id, c.ctx.fee_issue.evidence[1].id, lead.evidence[0].id],
+    explainer: { title: 'What is deducted when you sell', source_ids: ['S1', 'S3'], bullets: [
+      'Brokerage is ₹20 or 0.1% of order value, whichever is lower, with a ₹5 minimum.',
+      'A delivery sell has a DP charge of ₹16.50 from Groww and ₹3.50 from CDSL.',
+      'GST of 18% applies on brokerage and DP charges.',
+      'Each line is itemised on the contract note.'] }
+  };
+  const variant = patch => JSON.parse(JSON.stringify({ ...good, ...patch }));
+  const fails = d => checkDraft(d, c).checks.filter(x => !x.ok).map(x => x.label).join(' | ');
+  check('a grounded draft passes every check', checkDraft(good, c).ok, fails(good));
+  check('an invented rupee figure is caught', !checkDraft(variant({ explainer: { ...good.explainer, bullets: [...good.explainer.bullets.slice(0, 3), 'A sell costs ₹25.'] } }), c).ok);
+  check('advice words are caught', !checkDraft(variant({ explainer: { ...good.explainer, bullets: [...good.explainer.bullets.slice(0, 3), 'You should avoid small sells.'] } }), c).ok);
+  check('a quote id outside the evidence is caught', !checkDraft(variant({ quote_ids: ['r_made_up', ...good.quote_ids.slice(1)] }), c).ok);
+  check('an invented number in the observation is caught', !checkDraft(variant({ observation: 'Charges worry 4,812 users this week.' }), c).ok);
+  check('an unofficial or unknown source is caught', !checkDraft(variant({ explainer: { ...good.explainer, source_ids: ['S1', 'S9'] } }), c).ok);
+  check('more than 6 bullets is caught', !checkDraft(variant({ explainer: { ...good.explainer, bullets: Array(7).fill(good.explainer.bullets[2]) } }), c).ok);
+
+  const bad = variant({ explainer: { ...good.explainer, bullets: [...good.explainer.bullets.slice(0, 3), 'You should avoid this ₹25 charge.'] } });
+  let seen = [];
+  let n = 0;
+  const res = await writeWithModel({ result: r, sourcesText: srcText, lastChecked: meta.pulled_on, transport: async (sys, user) => { seen.push(user); return JSON.stringify(n++ ? good : bad); } });
+  check('a failed draft goes back once with the reasons', res.status === 'accepted' && res.attempts.length === 2 && /previous draft failed/.test(seen[1]) && /₹25/.test(seen[1]));
+  const out = res.output;
+  check('the accepted pulse is 250 words or fewer', out.pulse.words <= 250, `${out.pulse.words} words`);
+  check('the accepted pulse keeps the computed themes and scope', r.topThemes.every(t => out.pulse.markdown.includes(t.label)) && out.pulse.markdown.includes('12,765'));
+  check('the accepted pulse quotes verbatim excerpts', (out.pulse.markdown.match(/^> "(.*)" — /gm) || []).length === 3 && (out.pulse.markdown.match(/^> "(.*)" — /gm) || []).every(l => {
+    const body = l.replace(/^> "…?/, '').replace(/…?" — $/, ''); return rows.some(x => x.text.includes(body));
+  }));
+  const d2 = buildDocEntry(out);
+  check('the accepted drafts flow into the same MCP payload', d2.explanation_bullets.length === 4 && d2.weekly_pulse === out.pulse.markdown && d2.source_links.length === 2);
+  const fb = await writeWithModel({ result: r, sourcesText: srcText, transport: async () => JSON.stringify(bad) });
+  check('two failed drafts leave the rule-based output in place', fb.status === 'fallback' && fb.output === r);
+  const er = await writeWithModel({ result: r, sourcesText: srcText, transport: async () => { throw new Error('The model service refused the request (401)'); } });
+  check('a refused key is reported, not retried', er.status === 'error' && er.attempts.length === 1);
+  const junk = await writeWithModel({ result: r, sourcesText: srcText, transport: async () => 'Sure! Here is your summary.' });
+  check('a reply that is not JSON never reaches the gate', junk.status === 'fallback');
+})();
+
 /* ── the browser runs the same server ──────────────────────────────────── */
 console.log('\nOne server, two hosts');
 const appSrc = fs.readFileSync(path.join(ROOT, 'app.js'), 'utf8');

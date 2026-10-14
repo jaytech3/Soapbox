@@ -9,6 +9,7 @@
 
 import { parseCSV, runPipeline, buildDocEntry, buildEmailDraft } from './src/engine.js';
 import { createServer, hmacHexWebCrypto, DOC_HEADER, SERVER } from './src/mcp-core.js';
+import { PROVIDERS, SYSTEM, buildContext, makeTransport, writeWithModel, approxTokens } from './src/ai.js';
 
 const $ = id => document.getElementById(id);
 const el = (tag, cls, html) => { const n = document.createElement(tag); if (cls) n.className = cls; if (html != null) n.innerHTML = html; return n; };
@@ -22,7 +23,7 @@ const fmtDate = iso => { const [y, m, d] = iso.split('-'); return `${Number(d)} 
 const fmtShort = iso => { const [, m, d] = iso.split('-'); return `${Number(d)} ${MON[Number(m) - 1]}`; };
 const ICON = name => `<svg class="ic" aria-hidden="true"><use href="#${name}"/></svg>`;
 
-let ROWS = [], META = null, RESULT = null, DOC_ENTRY = null, EMAIL = null, SOURCES = '';
+let ROWS = [], META = null, RESULT = null, RULES = null, AI = null, WRITER = null, DOC_ENTRY = null, EMAIL = null, SOURCES = '';
 let THEME_OF = new Map();          // review_id → theme
 let FEE_OF = new Map();            // review_id → true when any charge is named
 
@@ -52,7 +53,7 @@ function md(src) {
 
 /* ── routing: one view at a time, addressable by hash ─────────────────── */
 
-const VIEWS = { overview: 'Overview', reviews: 'Reviews', themes: 'Themes', fee: 'Fee issue', pulse: 'Weekly pulse', explainer: 'Fee explainer', approve: 'Approve & log' };
+const VIEWS = { overview: 'Overview', reviews: 'Reviews', themes: 'Themes', fee: 'Fee issue', ai: 'Write with AI', pulse: 'Weekly pulse', explainer: 'Fee explainer', approve: 'Approve & log' };
 function route() {
   const name = (location.hash || '#overview').slice(1).split('?')[0];
   const view = VIEWS[name] ? name : 'overview';
@@ -390,7 +391,20 @@ const checkList = (id, items) => {
   $(id).innerHTML = items.map(([ok, label]) => `<li class="${ok ? '' : 'no'}">${ICON('i-check')}<span>${esc(label)}</span></li>`).join('');
 };
 
+const normFig = f => f.includes('%') ? Number(f.replace(/[^\d.]/g, '')) + '%' : '₹' + Number(f.replace(/[^\d.]/g, ''));
+const sourceFigures = () => new Set([...SOURCES.matchAll(/₹\s?[\d,]+(?:\.\d+)?|\d+(?:\.\d+)?%/g)].map(m => normFig(m[0].replace(/,/g, ''))));
+
+function renderWriter() {
+  document.querySelectorAll('[data-writer]').forEach(a => {
+    a.textContent = WRITER ? `Written with ${WRITER}` : 'Written by rules';
+    a.classList.toggle('ai', !!WRITER);
+  });
+  $('ai-writer').textContent = WRITER ? `In use: ${WRITER}` : 'In use: rule-based';
+  $('n-ai').textContent = WRITER ? 'on' : '';
+}
+
 function renderDocs(r) {
+  renderWriter();
   $('pulse').innerHTML = md(r.pulse.markdown);
   const b = $('pulse-budget');
   b.textContent = `${r.pulse.words} of 250 words`;
@@ -403,7 +417,7 @@ function renderDocs(r) {
     [excerpts.length === 3 && excerpts.every(x => ROWS.some(row => row.text.includes(x))), '3 quotes, each a verbatim excerpt of a review'],
     [/Key observation/.test(r.pulse.markdown), 'one key observation, with the trend'],
     [r.pulse.actions.length === 3, '3 action ideas for the product team'],
-    [true, 'same CSV in, same note out: no model, no sampling']
+    [true, WRITER ? `observation, actions and quote choice written by ${WRITER}; numbers and themes computed` : 'same CSV in, same note out: no model, no sampling']
   ]);
 
   const e = r.explainer;
@@ -423,7 +437,7 @@ function renderDocs(r) {
     [/\d{4}/.test(e.lastCheckedLabel), `"Last checked" carries a date`],
     [e.feeId === r.feeSignal.id, 'derived from the fee found in the reviews'],
     [!tone.test(e.bullets.join(' ')), 'neutral tone, no recommendation words'],
-    [e.figures.length > 0 && (!SOURCES || e.figures.every(f => SOURCES.includes(f))), `${e.figures.length} asserted rates, each traceable to sources.csv`]
+    [e.figures.length > 0 && (!SOURCES || e.figures.every(f => sourceFigures().has(normFig(f)))), `${e.figures.length} asserted rates, each traceable to sources.csv`]
   ]);
 }
 
@@ -529,6 +543,107 @@ function wireDecision() {
 
 const setStatus = (text, state) => { $('run-status').textContent = text; $('run-dot').className = 'dot ' + (state || ''); };
 
+/* ── write with AI ─────────────────────────────────────────────────────── */
+
+function renderAiContext() {
+  const c = buildContext(RULES, SOURCES, { lastChecked: META.pulled_on });
+  const ev = c.ctx.themes.reduce((a, t) => a + t.evidence.length, 0);
+  $('ai-ctx-size').textContent = `about ${nf(approxTokens(c.json + SYSTEM))} tokens`;
+  $('ai-ctx').innerHTML = [
+    [c.ctx.themes.length, 'themes with their counts, share, stars and distinctive words, computed from the reviews'],
+    [ev, 'reviews retrieved as evidence for those themes, the most telling ones spread across the weeks'],
+    [c.ctx.fee_issue.evidence.length, `reviews retrieved for the fee issue: ${RULES.feeSignal.label.toLowerCase()}`],
+    [c.ctx.official_sources.length, 'official sources with the facts read from each, the only place a figure may come from'],
+    [0, 'names, avatars or anything else that identifies a reviewer; each review is an id']
+  ].map(([n, t]) => `<li><b>${n}</b><span>${esc(t)}</span></li>`).join('');
+  $('ai-ctx-json').textContent = c.json;
+  $('ai-system').textContent = SYSTEM;
+}
+
+function wireAi() {
+  const sel = $('ai-provider');
+  sel.innerHTML = Object.entries(PROVIDERS).map(([k, p]) => `<option value="${k}">${esc(p.label)}</option>`).join('');
+  const pick = () => { const p = PROVIDERS[sel.value]; $('ai-model').value = p.model; $('ai-key-hint').textContent = p.keyHint + '.'; };
+  sel.addEventListener('change', pick); pick();
+  $('ai-system').textContent = SYSTEM;
+
+  $('ai-form').addEventListener('submit', async e => {
+    e.preventDefault();
+    const key = $('ai-key').value.trim();
+    const status = $('ai-status');
+    status.className = 'ai-status';
+    if (!key) { status.textContent = 'Paste an API key first.'; status.classList.add('bad'); return; }
+    if (!RULES) return;
+    const provider = sel.value, model = $('ai-model').value.trim() || PROVIDERS[provider].model;
+    $('ai-go').disabled = true; $('ai-use').hidden = true; $('ai-preview').hidden = true;
+    $('ai-attempts-card').hidden = false; $('ai-attempts').innerHTML = '';
+    const label = `${PROVIDERS[provider].label} · ${model}`;
+    try {
+      const res = await writeWithModel({
+        result: RULES, sourcesText: SOURCES, lastChecked: META.pulled_on,
+        transport: makeTransport({ provider, model, key }),
+        onEvent: ev => {
+          if (ev.type === 'attempt') status.textContent = `Draft ${ev.n}: waiting for ${PROVIDERS[provider].label}…`;
+          if (ev.type === 'checked') {
+            const box = el('div', '', `<h3>Draft ${ev.n} · ${ev.ok ? 'passed' : `${ev.checks.filter(c => !c.ok).length} failed`}</h3><ul class="checks"></ul>`);
+            box.querySelector('ul').innerHTML = ev.checks.map(c => `<li class="${c.ok ? '' : 'no'}">${ICON('i-check')}<span>${esc(c.label)}</span></li>`).join('');
+            $('ai-attempts').append(box);
+            if (!ev.ok) status.textContent = `Draft ${ev.n} failed checks. ${ev.n < 2 ? 'Sending it back with the reasons…' : ''}`;
+          }
+        }
+      });
+      if (res.status === 'accepted') {
+        AI = { out: res.output, label };
+        $('ai-pulse').innerHTML = md(res.output.pulse.markdown);
+        $('ai-pulse-words').textContent = `${res.output.pulse.words} of 250 words`;
+        const x = res.output.explainer;
+        $('ai-exp').innerHTML = `<h2>${esc(x.title)}</h2><ul>${x.bullets.map(b => `<li>${esc(b)}</li>`).join('')}</ul><div class="srcs"><strong>Sources</strong><ul>${x.sources.map(s => `<li><a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.label)}</a></li>`).join('')}</ul></div><p class="checked">Last checked: ${esc(x.lastCheckedLabel)}</p>`;
+        $('ai-exp-n').textContent = `${x.bullets.length} of 6 bullets · ${x.sources.length} official links`;
+        $('ai-preview').hidden = false; $('ai-use').hidden = false;
+        status.textContent = `Draft ${res.attempts.length} passed every check. Read it, then use it or keep the rule-based version.`;
+        status.classList.add('ok');
+      } else if (res.status === 'fallback') {
+        status.textContent = 'Neither draft passed every check, so nothing changes: the rule-based pulse and explainer stay in use.';
+        status.classList.add('bad');
+      } else {
+        status.textContent = res.error + '. Check the key and the model name.';
+        status.classList.add('bad');
+      }
+    } catch (err) {
+      status.textContent = `Could not reach the model: ${err.message}`;
+      status.classList.add('bad');
+    }
+    $('ai-go').disabled = false;
+  });
+
+  $('ai-use').addEventListener('click', async () => {
+    if (!AI) return;
+    WRITER = AI.label;
+    await useResult(AI.out);
+    $('ai-use').hidden = true; $('ai-reset').hidden = false;
+    location.hash = '#pulse';
+  });
+  $('ai-reset').addEventListener('click', async () => {
+    WRITER = null;
+    await useResult(RULES);
+    $('ai-reset').hidden = true; if (AI) $('ai-use').hidden = false;
+  });
+}
+
+/** Swap which pulse and explainer the rest of the product uses. The gate gets
+    fresh payloads and a fresh server, so an approval for one never covers the other. */
+async function useResult(r) {
+  RESULT = r;
+  DOC_ENTRY = buildDocEntry(RESULT);
+  EMAIL = buildEmailDraft(RESULT);
+  server = newServer(); nextId = 1;
+  renderOverview(RESULT);
+  renderThemes(RESULT);
+  renderDocs(RESULT);
+  renderGate();
+  await requestWithoutApproval();
+}
+
 async function run() {
   const btn = $('run');
   btn.disabled = true;
@@ -546,7 +661,7 @@ async function run() {
     setStatus(`Clustering ${nf(ROWS.length)} reviews…`);
     await sleep(30);
 
-    RESULT = runPipeline(ROWS, { asOf: META.window.to, windowWeeks: META.window.weeks, totalInWindow: META.reviews_in_window_all, lastChecked: META.pulled_on });
+    RULES = RESULT = runPipeline(ROWS, { asOf: META.window.to, windowWeeks: META.window.weeks, totalInWindow: META.reviews_in_window_all, lastChecked: META.pulled_on });
     DOC_ENTRY = buildDocEntry(RESULT);
     EMAIL = buildEmailDraft(RESULT);
     THEME_OF = new Map();
@@ -559,7 +674,9 @@ async function run() {
     renderOverview(RESULT);
     renderThemes(RESULT);
     renderFee(RESULT);
+    WRITER = null; AI = null; $('ai-use').hidden = true; $('ai-reset').hidden = true; $('ai-preview').hidden = true; $('ai-attempts-card').hidden = true; $('ai-status').textContent = '';
     renderDocs(RESULT);
+    renderAiContext();
     renderReviews();
     renderGate();
     $('n-reviews').textContent = nf(RESULT.meta.corpusSize);
@@ -623,5 +740,6 @@ $('clear-log').addEventListener('click', () => {
 
 $('run').addEventListener('click', run);
 wireReviews();
+wireAi();
 route();
 run();

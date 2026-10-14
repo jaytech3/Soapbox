@@ -25,6 +25,7 @@
   <symbol id="i-up" viewBox="0 0 24 24"><path d="M12 16V5M7 10l5-5 5 5M5 19h14"/></symbol>
   <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></symbol>
   <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.7M20 4v5h-5"/></symbol>
+  <symbol id="i-spark" viewBox="0 0 24 24"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5 18 18M18 6l-2.5 2.5M8.5 15.5 6 18"/></symbol>
   <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 5 5 9-10"/></symbol>
 </svg>
 
@@ -56,6 +57,7 @@
       <a href="#themes" data-view="themes"><svg class="ic"><use href="#i-tags"/></svg>Themes<span class="count" id="n-themes"></span></a>
       <a href="#fee" data-view="fee"><svg class="ic"><use href="#i-rupee"/></svg>Fee issue</a>
       <span class="nav-k">Outputs</span>
+      <a href="#ai" data-view="ai"><svg class="ic"><use href="#i-spark"/></svg>Write with AI<span class="count" id="n-ai"></span></a>
       <a href="#pulse" data-view="pulse"><svg class="ic"><use href="#i-doc"/></svg>Weekly pulse</a>
       <a href="#explainer" data-view="explainer"><svg class="ic"><use href="#i-book"/></svg>Fee explainer</a>
       <a href="#approve" data-view="approve"><svg class="ic"><use href="#i-shield"/></svg>Approve &amp; log<span class="count" id="n-pending"></span></a>
@@ -70,7 +72,7 @@
         </div>
         <p class="run-hint">Any CSV with <code>review_id, date, rating, text</code> columns runs through the same pipeline, in your browser. Nothing is uploaded.</p>
       </div>
-      <a class="side-link" href="https://github.com/jaytech3/soapbox" target="_blank" rel="noopener">Source on GitHub</a>
+      <a class="side-link" href="https://github.com/jaytech3/Soapbox" target="_blank" rel="noopener">Source on GitHub</a>
     </div>
   </aside>
   <div class="scrim" id="scrim"></div>
@@ -213,9 +215,46 @@
       </section>
 
       <!-- ════════ pulse ════════ -->
+      <section class="view" id="view-ai" hidden>
+        <header class="page-h">
+          <div><div class="h-row"><h1>Write with AI</h1><span class="budget" id="ai-writer"></span></div><p class="sub">The analysis does not change: the themes, the counts and the fee issue come from the reviews. A language model reads the evidence below and writes the parts a person would write: the key observation, three actions, which three reviews to quote, and the fee explainer. Each draft is checked against the evidence. A draft that fails goes back once with the reasons; if it fails again, the rule-based version stays.</p></div>
+        </header>
+
+        <div class="grid g-2">
+          <div class="card">
+            <div class="card-h"><h2>Model</h2><span class="card-sub">your own key</span></div>
+            <form class="ai-form" id="ai-form" autocomplete="off">
+              <label class="fld"><span>Provider</span><select id="ai-provider"></select></label>
+              <label class="fld"><span>Model</span><input id="ai-model" spellcheck="false"></label>
+              <label class="fld"><span>API key</span><input id="ai-key" type="password" spellcheck="false" placeholder="Paste a key" autocomplete="off"></label>
+              <p class="fld-note" id="ai-key-hint"></p>
+              <p class="fld-note">The key stays in this tab. It is sent only to the provider you pick and is gone when you close or reload the page.</p>
+              <div class="row tight"><button class="btn primary" id="ai-go" type="submit">Write drafts</button><button class="btn" id="ai-use" type="button" hidden>Use these drafts</button><button class="btn ghost" id="ai-reset" type="button" hidden>Back to rule-based</button></div>
+              <p class="ai-status" id="ai-status" role="status"></p>
+            </form>
+          </div>
+          <div class="card">
+            <div class="card-h"><h2>What the model reads</h2><span class="card-sub" id="ai-ctx-size"></span></div>
+            <ul class="ai-ctx" id="ai-ctx"></ul>
+            <details class="peek"><summary>Show the full context</summary><pre id="ai-ctx-json"></pre></details>
+            <details class="peek"><summary>Show the instructions</summary><pre id="ai-system"></pre></details>
+          </div>
+        </div>
+
+        <div class="card" id="ai-attempts-card" hidden>
+          <div class="card-h"><h2>Checks on each draft</h2><span class="card-sub">a failed check is sent back to the model word for word</span></div>
+          <div class="ai-attempts" id="ai-attempts"></div>
+        </div>
+
+        <div class="grid g-2 top-gap" id="ai-preview" hidden>
+          <div class="card"><div class="card-h"><h2>Weekly pulse, AI draft</h2><span class="card-sub" id="ai-pulse-words"></span></div><article class="doc slim" id="ai-pulse"></article></div>
+          <div class="card"><div class="card-h"><h2>Fee explainer, AI draft</h2><span class="card-sub" id="ai-exp-n"></span></div><article class="doc slim explainer" id="ai-exp"></article></div>
+        </div>
+      </section>
+
       <section class="view" id="view-pulse" hidden>
         <header class="page-h">
-          <div><div class="h-row"><h1>Weekly product pulse</h1><span class="budget" id="pulse-budget"></span></div><p class="sub">For the product team, every Monday. Top themes, the quotes behind them, one observation about what is going wrong, and three things to do. Capped at 250 words, so it gets read.</p></div>
+          <div><div class="h-row"><h1>Weekly product pulse</h1><span class="budget" id="pulse-budget"></span><a class="writer" href="#ai" data-writer></a></div><p class="sub">For the product team, every Monday. Top themes, the quotes behind them, one observation about what is going wrong, and three things to do. Capped at 250 words, so it gets read.</p></div>
           <div class="row tight">
             <button class="btn" data-copy="pulse" type="button">Copy</button>
             <a class="btn" id="dl-pulse" download="weekly-pulse.md">Download .md</a>
@@ -235,7 +274,7 @@
       <!-- ════════ explainer ════════ -->
       <section class="view" id="view-explainer" hidden>
         <header class="page-h">
-          <div><div class="h-row"><h1>Fee explainer</h1><span class="budget" id="exp-budget"></span></div><p class="sub">For support to paste when a user asks why something was deducted. Facts and figures from official pages only, in the order a confused user asks them. No reassurance, no recommendation, and a date so it cannot go stale silently.</p></div>
+          <div><div class="h-row"><h1>Fee explainer</h1><span class="budget" id="exp-budget"></span><a class="writer" href="#ai" data-writer></a></div><p class="sub">For support to paste when a user asks why something was deducted. Facts and figures from official pages only, in the order a confused user asks them. No reassurance, no recommendation, and a date so it cannot go stale silently.</p></div>
           <div class="row tight">
             <button class="btn" data-copy="explainer" type="button">Copy</button>
             <a class="btn" href="sources.csv">Sources</a>

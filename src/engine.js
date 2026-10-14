@@ -441,7 +441,7 @@ function weeklyCounts(members, from, asOf) {
 
 /* ── 6. Weekly product pulse (≤250 words) ──────────────────────────────── */
 
-function buildPulse({ themes, topThemes, quotes, feeSignal, corpus, windowed, from, asOf, opts = {} }) {
+function buildPulse({ themes, topThemes, quotes, feeSignal, corpus, windowed, from, asOf, opts = {}, override = null }) {
   const neg = topThemes.filter(t => t.polarity === 'negative');
   const lead = neg[0] || topThemes[0];
   const run = feeSignal.weeklyRun;
@@ -449,7 +449,7 @@ function buildPulse({ themes, topThemes, quotes, feeSignal, corpus, windowed, fr
     ? (run.at(-1).count > run[0].count ? 'rising' : run.at(-1).count < run[0].count ? 'easing' : 'flat')
     : 'flat';
 
-  const actions = [
+  const actions = override?.actions || [
     'Itemise brokerage, DP charge, CDSL and GST on the order confirmation, not only the next-day contract note.',
     'Show the rupee cost live as quantity is entered, including the ₹0 case under ₹100 of debit value.',
     'Ship the explainer below as the canned support reply and track repeat contacts about charges.'
@@ -461,7 +461,7 @@ function buildPulse({ themes, topThemes, quotes, feeSignal, corpus, windowed, fr
 
   const chargeTheme = themes.find(t => t.id === 'charges');
   const chargeRank = themes.indexOf(chargeTheme) + 1;
-  const observation = `**Key observation.** ${lead.label} is the largest negative theme (${lead.count} reviews, ${lead.avgRating.toFixed(2)}★). The most fixable one is charges (#${chargeRank}, ${chargeTheme.count} reviews): ${feeSignal.confused} of ${feeSignal.mentions} reviews naming ${feeSignal.short} did not expect the deduction ("hidden", "extra", "bina bataye"). Every charge is published; this is placement, not pricing. Mentions ${trend} week on week.`;
+  const observation = override?.observation ? `**Key observation.** ${override.observation}` : `**Key observation.** ${lead.label} is the largest negative theme (${lead.count} reviews, ${lead.avgRating.toFixed(2)}★). The most fixable one is charges (#${chargeRank}, ${chargeTheme.count} reviews): ${feeSignal.confused} of ${feeSignal.mentions} reviews naming ${feeSignal.short} did not expect the deduction ("hidden", "extra", "bina bataye"). Every charge is published; this is placement, not pricing. Mentions ${trend} week on week.`;
 
   /* The brief caps this note at 250 words. Quotes carry the most compressible
      text, so they are trimmed in fixed steps until the note fits — same input,
@@ -499,6 +499,40 @@ ${observation}
   }
   return { markdown: body, words, trend, actions, limit: 250, withinLimit: words <= 250 };
 }
+
+/** The same note, with the observation, the actions and the quotes supplied
+    by someone else (the AI writer). Numbers, themes and layout stay computed. */
+export function composePulse(result, override) {
+  return buildPulse({
+    themes: result.themes, topThemes: result.topThemes, quotes: override.quotes || result.quotes,
+    feeSignal: result.feeSignal, corpus: { length: result.meta.corpusSize }, windowed: { length: result.meta.reviewsInWindow },
+    from: result.meta.from, asOf: result.meta.asOf, opts: { totalInWindow: result.meta.totalInWindow }, override
+  });
+}
+
+/** Retrieval for the AI writer: the most telling reviews per theme and for the
+    fee, scored and spread across weeks by the same picker that chooses quotes. */
+export function retrieveEvidence(result, { perTheme = 5, otherThemes = 3, fee = 10 } = {}) {
+  const themes = result.themes.map((t, i) => {
+    const def = THEMES.find(d => d.id === t.id);
+    return { id: t.id, examples: pickQuotes(t.members, { kind: 'theme', must: def.must, lift: def.lift }, i < 3 ? perTheme : otherThemes) };
+  });
+  const pool = [...new Set([...result.feeSignal.members, ...result.themes.find(t => t.id === 'charges').members])];
+  return { themes, fee: pickQuotes(pool, { kind: 'fee', patterns: result.feeSignal.entity.patterns }, fee) };
+}
+
+/** A quote object for a review the AI writer picked, with the key word found
+    the same way the engine finds it, so the excerpt opens on the point. */
+export function quoteFor(row, result) {
+  const pats = [...result.feeSignal.entity.patterns, ...CONFUSION_MARKERS, ...THEMES.flatMap(t => t.must)];
+  return {
+    review_id: row.review_id, date: row.date, rating: row.rating,
+    text: row.text.length > 300 ? row.text.slice(0, 297).replace(/\s+\S*$/, '') + '…' : row.text,
+    keyAt: keyWord(row.text, pats)
+  };
+}
+
+export { fmtDate };
 
 /* ── 7. Fee explainer (≤6 bullets, facts only, 2 official links) ───────── */
 

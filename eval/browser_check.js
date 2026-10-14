@@ -173,6 +173,60 @@ try {
   check('reject: document unchanged', a2 === b2, `${b2} → ${a2}`);
   if (SHOTS) { await page2.$eval('#console', e => e.scrollIntoView({ block: 'start' })); await page2.screenshot({ path: path.join(OUT, '10-rejected.png') }); }
 
+  /* write with AI: the model is intercepted, so no key and no network are needed */
+  const page5 = await browser.newPage({ viewport: { width: 1280, height: 860 }, deviceScaleFactor: 1.5, reducedMotion: 'reduce' });
+  const errs5 = []; page5.on('pageerror', e => errs5.push(e.message));
+  let modelCalls = 0, sawKeyInUrl = false, sentFeedback = false;
+  await page5.route('https://generativelanguage.googleapis.com/**', async route => {
+    const req = route.request();
+    if (/key=/.test(req.url())) sawKeyInUrl = true;
+    const body = JSON.parse(req.postData());
+    const user = body.contents[0].parts[0].text;
+    if (/previous draft failed/.test(user)) sentFeedback = true;
+    const ctx = JSON.parse(user.slice(user.indexOf('{'), user.indexOf('\n\nWrite this week')));
+    const neg = ctx.themes.find(t => t.avg_stars < 3);
+    const draft = {
+      observation: `Charges are the most fixable complaint: ${ctx.fee_issue.reviews_not_expecting_it} of ${ctx.fee_issue.reviews_naming_it} reviews naming brokerage did not expect the deduction, while ${neg.label} leads the negative themes.`,
+      actions: ['Show the DP charge and GST on the order confirmation.', 'Show the rupee cost live as quantity is typed.', 'Use the explainer as the support reply for charge questions.'],
+      quote_ids: [ctx.fee_issue.evidence[0].id, ctx.fee_issue.evidence[1].id, neg.evidence[0].id],
+      explainer: { title: 'What is deducted when you sell', source_ids: ['S1', 'S3'], bullets: [
+        'Brokerage is ₹20 or 0.1% of order value, whichever is lower, with a ₹5 minimum.',
+        'A delivery sell has a DP charge of ₹16.50 from Groww and ₹3.50 from CDSL.',
+        'GST of 18% applies on brokerage and DP charges.',
+        modelCalls === 0 ? 'You should avoid small sells, which cost ₹25.' : 'Each line is itemised on the contract note.'] }
+    };
+    modelCalls++;
+    await route.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify({ candidates: [{ content: { parts: [{ text: JSON.stringify(draft) }] } }] }) });
+  });
+  await page5.goto(base, { waitUntil: 'networkidle' });
+  await waitConsole(page5, /waiting for a human/);
+  await go(page5, 'ai');
+  check('AI view shows what the model reads', (await page5.$$('#ai-ctx li')).length === 5 && /tokens/.test(await page5.textContent('#ai-ctx-size')));
+  check('AI view starts on the rule-based writer', /rule-based/.test(await page5.textContent('#ai-writer')));
+  await page5.click('#ai-go');
+  check('no key, no call', modelCalls === 0 && /key/i.test(await page5.textContent('#ai-status')));
+  await page5.fill('#ai-key', 'test-key-not-real');
+  await page5.click('#ai-go');
+  await page5.waitForSelector('#ai-use:not([hidden])', { timeout: 15000 });
+  check('a failing first draft is sent back with its reasons', modelCalls === 2 && sentFeedback);
+  check('both drafts show their checks', (await page5.$$('#ai-attempts > div')).length === 2 && (await page5.$$('#ai-attempts li.no')).length >= 2);
+  check('the key never goes in a URL', !sawKeyInUrl);
+  if (SHOTS) await page5.screenshot({ path: path.join(OUT, '12-write-with-ai.png'), fullPage: true });
+  await page5.click('#ai-use');
+  await page5.waitForSelector('#view-pulse:not([hidden])');
+  check('the AI drafts become the pulse in use', /Written with Google Gemini/.test(await page5.textContent('#view-pulse [data-writer]')) && /most fixable complaint/.test(await page5.textContent('#pulse')));
+  check('the pulse checks still pass on the AI draft', (await page5.$$('#pulse-checks li.no')).length === 0);
+  await go(page5, 'explainer');
+  check('the explainer checks still pass on the AI draft', (await page5.$$('#exp-checks li.no')).length === 0);
+  await go(page5, 'approve');
+  await waitConsole(page5, /waiting for a human/);
+  check('the gate holds the AI drafts until approval', /most fixable complaint/.test(await page5.textContent('#pay-mail')) && (await entries(page5)) === 0);
+  await page5.click('#approve');
+  await waitConsole(page5, /draft_created/);
+  check('approving logs the AI drafts', (await entries(page5)) === 1 && /most fixable complaint/.test(await page5.evaluate(k => localStorage.getItem(k), LOG_KEY)));
+  check('no page errors in the AI walk', errs5.length === 0, errs5.join(' | '));
+  await page5.close();
+
   /* bring-your-own CSV: the same file through the upload path must run end to end */
   const page4 = await browser.newPage({ viewport: { width: 1280, height: 860 }, reducedMotion: 'reduce' });
   await page4.goto(base, { waitUntil: 'networkidle' });
