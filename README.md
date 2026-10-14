@@ -1,14 +1,14 @@
-# Earful — from app reviews to a weekly pulse, a fee explainer, and an approval gate
+# Soapbox — from app reviews to a weekly pulse, a fee explainer, and an approval gate
 
-**Live prototype:** https://jaytech3.github.io/nabz/
+**Live prototype:** https://jaytech3.github.io/soapbox/
 
-An earful is what a review page gives you. Twelve weeks of public Groww reviews from the Google Play listing go in. Out come two things a real team would use on a Monday: a **weekly product pulse** for the product team, and a **facts-only explanation of the charge users keep misreading** for support to paste. Neither reaches an internal tool until a person approves it — the MCP server refuses both calls the first time and returns what it *would* write, with a single-use token.
+Every review is someone on a soapbox. Twelve weeks of public Groww reviews from the Google Play listing go in. Out come two things a real team would use on a Monday: a **weekly product pulse** for the product team, and a **facts-only explanation of the charge users keep misreading** for support to paste. Neither reaches an internal tool until a person approves it — the MCP server refuses both calls the first time and returns what it *would* write, with a single-use token.
 
 Built for the **NextLeap PM Fellowship, Milestone 5 (RAGs & Context Engineering)**. The product is **Groww**, carried forward from Milestone 1 and used in [Milestone 4](https://github.com/jaytech3/pramaan).
 
 | Deliverable | Where |
 |---|---|
-| Working prototype | https://jaytech3.github.io/nabz/ |
+| Working prototype | https://jaytech3.github.io/soapbox/ |
 | Weekly product pulse | [out/weekly-pulse.md](out/weekly-pulse.md) |
 | Doc snippet showing the appended entry | [docs/product-pulse-log.md](docs/product-pulse-log.md) |
 | Email draft | [out/email-draft.md](out/email-draft.md), [out/email-draft.eml](out/email-draft.eml) |
@@ -17,33 +17,33 @@ Built for the **NextLeap PM Fellowship, Milestone 5 (RAGs & Context Engineering)
 | Fee explainer | [out/fee-explainer.md](out/fee-explainer.md) |
 | Machine-readable payloads | [out/doc-entry.json](out/doc-entry.json), [out/fee-signals.csv](out/fee-signals.csv), [out/themes.csv](out/themes.csv) |
 | Screenshots of the prototype | [docs/screenshots/](docs/screenshots/) (overview, reviews, themes, fee issue, pulse, explainer, gate, transcript, log and draft, rejection, phone) |
-| Checks | [eval/run_eval.js](eval/run_eval.js) (64, headless) and [eval/browser_check.js](eval/browser_check.js) (37, in Chromium) |
+| Checks | [eval/run_eval.js](eval/run_eval.js) (64, headless) and [eval/browser_check.js](eval/browser_check.js) (44, in Chromium) |
 
 <p align="center">
-  <img src="docs/screenshots/1-overview.png" alt="The Earful overview: a top bar with seven views, the headline that users read the ledger rather than the pricing page, an itemised ledger for a small sell, and five KPI tiles" width="900">
+  <img src="docs/screenshots/1-overview.png" alt="The Soapbox overview: a sidebar with seven views and a workspace card, a hero that says every review is a speech, an itemised ledger for a small sell, and five KPI tiles" width="900">
 </p>
 
 ---
 
 ## 1. How to run it, and what to look at
 
-**The prototype.** It analyses the reviews the moment it loads, in the browser, and is laid out as seven views along the top bar, in the order the brief asks for them:
+**The prototype.** It analyses the reviews the moment it loads, in the browser, and is laid out as a product: a sidebar with seven views, a search box that jumps straight into the reviews, a workspace card, and a run card with **Re-run** and **Your CSV**. Drop any CSV with `review_id, date, rating, text` columns on that button and the same pipeline runs on it, in the browser; nothing is uploaded anywhere. The views, in the order the brief asks for them:
 
 | View | What it shows |
 |---|---|
-| **Overview** | The week's headline, five KPI tiles, the rating mix, reviews per week, the five themes by volume, and the charge users keep misreading, with one quote. The run trace is folded below. |
-| **Reviews** | Every review with text from the window, in one place. Search any word, filter by theme or rating, keep only reviews that name a charge, sort by date, helpfulness, rating or length. Forty at a time, with "show more". |
-| **Themes** | Five cards with counts, share, average rating, one-and-two-star share and the words that distinguish each theme; a button on each opens the reviews view already filtered. The three verbatim quotes sit below. |
+| **Overview** | The week's headline, five KPI tiles, themes by volume, the rating mix, reviews per week, the charge users keep misreading with one quote, and the run trace. |
+| **Reviews** | Every review with text from the window, in one place. Search any word (matches are highlighted), filter by theme or rating, keep only reviews that name a charge, sort by date, helpfulness, rating or length. Four tiles summarise whatever is filtered. Forty at a time, with "show more". |
+| **Themes** | Five cards with counts, share, average rating, one-and-two-star share, a twelve-week sparkline and the words that distinguish each theme; a button on each opens the reviews view already filtered. The three verbatim quotes sit below. |
 | **Fee issue** | The six charges scored on mentions × confusion rate, the confused mentions by week, and every review behind the score. |
-| **Weekly pulse** | The 250-word note, with its word count, copy and download. |
-| **Fee explainer** | The six-bullet support snippet, its two official sources and the "Last checked" date. |
-| **Approve & log** | The two MCP payloads, the decision, the live transcript, and after approval the appended log entry and the email draft. |
+| **Weekly pulse** | The 250-word note, with its word count, copy and download, and a rail of the checks it passes: the limit, the three themes, the three verbatim quotes, the observation, the three actions. |
+| **Fee explainer** | The six-bullet support snippet, its two official sources and the "Last checked" date, with its own rail of checks: bullet limit, official domains, neutral tone, every rate traceable to `sources.csv`. |
+| **Approve & log** | The two MCP payloads beside a sticky decision card, the live transcript, and after approval the appended log entry and the email draft side by side. |
 
 To run it on your own machine it needs a server, because the page reads the CSV over HTTP; opening `index.html` from disk will not work.
 
 ```bash
-git clone https://github.com/jaytech3/nabz.git
-cd nabz
+git clone https://github.com/jaytech3/soapbox.git
+cd soapbox
 python3 -m http.server 8000     # then open http://localhost:8000
 ```
 
@@ -62,7 +62,7 @@ node mcp/client-demo.js --reject   # shows that nothing is written on a no
 node mcp/server.js                 # the server alone, for your own MCP client
 ```
 
-**The checks.** 64 of them, covering every constraint in the brief plus the gate, run against the live server in a scratch directory so a test run never touches the real log. A further 37 walk every view of the prototype in headless Chromium, search and filter the reviews, approve, and read the document back:
+**The checks.** 64 of them, covering every constraint in the brief plus the gate, run against the live server in a scratch directory so a test run never touches the real log. A further 44 walk every view of the prototype in headless Chromium, search and filter the reviews, push a CSV through the upload path, approve, and read the document back:
 
 ```bash
 node eval/run_eval.js            # exit 1 on any failure
@@ -99,7 +99,7 @@ Three properties make the gate worth something, and each has a test:
 **The browser runs the same server.** GitHub Pages serves static files and cannot host a stdio process, so the tools, the gate and the JSON-RPC handler live in [`src/mcp-core.js`](src/mcp-core.js) with nothing platform-specific inside. `mcp/server.js` wraps that core in stdio, Node's HMAC and the filesystem; `app.js` wraps the same core in an in-page transport, Web Crypto's HMAC and this browser's storage, which stands in for the document and the draft. The Approve & log view prints the exchange as it happens: the two refusals, the computed tokens, the writes after approval, and then two checks the gate has to pass in front of you — the approved token resent with an edited date, and the same token replayed — both refused by the server, not by a line in the page. Reject instead, and the client tries a forged token; the log in your browser stays the size it was. Nothing in the transcript is scripted; [`eval/browser_check.js`](eval/browser_check.js) asserts exactly that.
 
 <p align="center">
-  <img src="docs/screenshots/8-transcript.png" alt="The MCP transcript after approval: appended, draft_created with sent false, then an edited payload and a replay both rejected, followed by the appended log entry" width="900">
+  <img src="docs/screenshots/8-transcript.png" alt="The MCP transcript after approval: appended, draft_created with sent false, then an edited payload and a replay both rejected" width="900">
 </p>
 
 The document the page appends to survives a reload and can be downloaded whole; on a machine, the same call appends to `docs/product-pulse-log.md`, which is the file in this repo. The email draft is an `.eml` with `X-Unsent: 1`, so a mail client opens it as an editable draft, and an "Open in Gmail" link fills a compose window. Neither path can send.

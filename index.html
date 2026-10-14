@@ -3,260 +3,323 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Earful — reviews, heard. Monday's plan, written.</title>
-<meta name="description" content="Earful reads twelve weeks of public Groww reviews, finds the themes and the one charge users keep misreading, writes the weekly product pulse and the support explainer, and logs both through MCP only after a person approves.">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23ff4d3d'/%3E%3Ccircle cx='12' cy='16' r='3' fill='%23fff'/%3E%3Cpath d='M17.5 10.5c3 1.5 4.5 3.4 4.5 5.5s-1.5 4-4.5 5.5' stroke='%23fff' stroke-width='2.4' fill='none' stroke-linecap='round'/%3E%3Cpath d='M21.5 7c4.2 2.2 6.5 5.2 6.5 9s-2.3 6.8-6.5 9' stroke='%23fff' stroke-width='2.4' fill='none' stroke-linecap='round' opacity='.75'/%3E%3C/svg%3E">
+<title>Soapbox — every review is a speech. Here is the plan.</title>
+<meta name="description" content="Soapbox reads twelve weeks of public app reviews, sorts them into themes, finds the one charge users keep misreading, writes the weekly product pulse and the support explainer, and logs both through MCP only after a person approves.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='9' fill='%23ff4f1f'/%3E%3Crect x='7' y='15' width='18' height='11' rx='2.5' fill='%23fff'/%3E%3Crect x='10' y='18' width='12' height='2' rx='1' fill='%23ff4f1f'/%3E%3Crect x='10' y='22' width='12' height='2' rx='1' fill='%23ff4f1f'/%3E%3Cpath d='M16 5v6M11.5 6.5 14 11M20.5 6.5 18 11' stroke='%23fff' stroke-width='2.4' stroke-linecap='round'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Public+Sans:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
 
-<header class="top">
-  <div class="top-in">
-    <a class="brand" href="#overview" aria-label="Earful, overview">
-      <svg class="brand-mark" viewBox="0 0 32 32" width="30" height="30" aria-hidden="true"><rect width="32" height="32" rx="8" fill="#ff4d3d"/><circle cx="12" cy="16" r="3" fill="#fff"/><path d="M17.5 10.5c3 1.5 4.5 3.4 4.5 5.5s-1.5 4-4.5 5.5" stroke="#fff" stroke-width="2.4" fill="none" stroke-linecap="round"/><path d="M21.5 7c4.2 2.2 6.5 5.2 6.5 9s-2.3 6.8-6.5 9" stroke="#fff" stroke-width="2.4" fill="none" stroke-linecap="round" opacity=".75"/></svg>
-      <span class="brand-name">Earful</span>
-      <span class="brand-sub">review intelligence for Groww</span>
-    </a>
-    <div class="top-right">
-      <span class="chip" id="window-chip">Google Play · 12 weeks</span>
-      <button class="btn small" id="run" type="button">Re-run analysis</button>
-      <a class="top-link" href="https://github.com/jaytech3/nabz" target="_blank" rel="noopener">Source</a>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-home" viewBox="0 0 24 24"><path d="M4 11.5 12 5l8 6.5V19a1 1 0 0 1-1 1h-5v-6H10v6H5a1 1 0 0 1-1-1z"/></symbol>
+  <symbol id="i-chat" viewBox="0 0 24 24"><path d="M5 5h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-7l-5 4v-4H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z"/></symbol>
+  <symbol id="i-tags" viewBox="0 0 24 24"><path d="M4 5h7l9 9-7 7-9-9z"/><circle cx="8" cy="9" r="1.4"/></symbol>
+  <symbol id="i-rupee" viewBox="0 0 24 24"><path d="M7 5h10M7 9h10M7 5c6 0 7 2 7 4s-1 4-7 4l7 6"/></symbol>
+  <symbol id="i-doc" viewBox="0 0 24 24"><path d="M7 3h7l5 5v13H7z M14 3v5h5 M9.5 12h7M9.5 16h7"/></symbol>
+  <symbol id="i-book" viewBox="0 0 24 24"><path d="M4 5h6a3 3 0 0 1 3 3v12a2 2 0 0 0-2-2H4z M20 5h-6a3 3 0 0 0-3 3v12a2 2 0 0 1 2-2h7z"/></symbol>
+  <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3 5 6v6c0 4 3 7.5 7 9 4-1.5 7-5 7-9V6z M9 12l2 2 4-4"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="m20 20-4.5-4.5"/></symbol>
+  <symbol id="i-up" viewBox="0 0 24 24"><path d="M12 16V5M7 10l5-5 5 5M5 19h14"/></symbol>
+  <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.7M20 4v5h-5"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 5 5 9-10"/></symbol>
+</svg>
+
+<div class="app">
+  <aside class="side" id="side">
+    <div class="side-top">
+      <a class="brand" href="#overview" aria-label="Soapbox, overview">
+        <svg class="brand-mark" viewBox="0 0 32 32" width="34" height="34" aria-hidden="true"><rect width="32" height="32" rx="9" fill="#ff4f1f"/><rect x="7" y="15" width="18" height="11" rx="2.5" fill="#fff"/><rect x="10" y="18" width="12" height="2" rx="1" fill="#ff4f1f"/><rect x="10" y="22" width="12" height="2" rx="1" fill="#ff4f1f"/><path d="M16 5v6M11.5 6.5 14 11M20.5 6.5 18 11" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/></svg>
+        <span class="brand-name">Soapbox</span>
+      </a>
+      <button class="icon-btn side-close" id="side-close" type="button" aria-label="Close menu">✕</button>
     </div>
+
+    <div class="ws">
+      <span class="ws-k">Workspace</span>
+      <strong id="ws-name">Groww · Google Play</strong>
+      <span class="ws-sub" id="ws-window">12 weeks</span>
+    </div>
+
+    <label class="cmd" for="cmd">
+      <svg class="ic" aria-hidden="true"><use href="#i-search"/></svg>
+      <input id="cmd" type="search" placeholder="Search reviews" autocomplete="off">
+      <kbd>/</kbd>
+    </label>
+
+    <nav class="nav" aria-label="Sections">
+      <a href="#overview" data-view="overview"><svg class="ic"><use href="#i-home"/></svg>Overview</a>
+      <a href="#reviews" data-view="reviews"><svg class="ic"><use href="#i-chat"/></svg>Reviews<span class="count" id="n-reviews"></span></a>
+      <a href="#themes" data-view="themes"><svg class="ic"><use href="#i-tags"/></svg>Themes<span class="count" id="n-themes"></span></a>
+      <a href="#fee" data-view="fee"><svg class="ic"><use href="#i-rupee"/></svg>Fee issue</a>
+      <span class="nav-k">Outputs</span>
+      <a href="#pulse" data-view="pulse"><svg class="ic"><use href="#i-doc"/></svg>Weekly pulse</a>
+      <a href="#explainer" data-view="explainer"><svg class="ic"><use href="#i-book"/></svg>Fee explainer</a>
+      <a href="#approve" data-view="approve"><svg class="ic"><use href="#i-shield"/></svg>Approve &amp; log<span class="count" id="n-pending"></span></a>
+    </nav>
+
+    <div class="side-foot">
+      <div class="run-card">
+        <div class="run-row"><span class="dot" id="run-dot"></span><span id="run-status">Reading reviews…</span></div>
+        <div class="run-actions">
+          <button class="btn small ghost" id="run" type="button"><svg class="ic"><use href="#i-refresh"/></svg>Re-run</button>
+          <label class="btn small ghost" for="csv"><svg class="ic"><use href="#i-up"/></svg>Your CSV<input id="csv" type="file" accept=".csv,text/csv" hidden></label>
+        </div>
+        <p class="run-hint">Any CSV with <code>review_id, date, rating, text</code> columns runs through the same pipeline, in your browser. Nothing is uploaded.</p>
+      </div>
+      <a class="side-link" href="https://github.com/jaytech3/soapbox" target="_blank" rel="noopener">Source on GitHub</a>
+    </div>
+  </aside>
+  <div class="scrim" id="scrim"></div>
+
+  <div class="frame">
+    <header class="mobile-bar">
+      <button class="icon-btn" id="side-open" type="button" aria-label="Open menu"><svg class="ic"><use href="#i-menu"/></svg></button>
+      <a class="brand" href="#overview"><svg class="brand-mark" viewBox="0 0 32 32" width="28" height="28" aria-hidden="true"><rect width="32" height="32" rx="9" fill="#ff4f1f"/><rect x="7" y="15" width="18" height="11" rx="2.5" fill="#fff"/><rect x="10" y="18" width="12" height="2" rx="1" fill="#ff4f1f"/><rect x="10" y="22" width="12" height="2" rx="1" fill="#ff4f1f"/><path d="M16 5v6M11.5 6.5 14 11M20.5 6.5 18 11" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/></svg><span class="brand-name">Soapbox</span></a>
+      <span class="mobile-view" id="mobile-view">Overview</span>
+    </header>
+
+    <main id="main">
+
+      <!-- ════════ overview ════════ -->
+      <section class="view" id="view-overview">
+        <div class="hero">
+          <div class="hero-copy">
+            <p class="eyebrow">Week ending <span id="hero-date">…</span></p>
+            <h1>Every review is a speech.<br>Here is the plan.</h1>
+            <p class="lede">Soapbox reads every public review from the last twelve weeks, sorts the speeches into five themes, and finds the one charge people keep saying they never expected. Out of it come a weekly note for the product team and an explanation support can paste. Neither reaches a tool until you approve it.</p>
+            <div class="hero-cta">
+              <a class="btn primary lg" href="#pulse">Read this week's pulse</a>
+              <a class="btn lg" href="#reviews">Browse the reviews</a>
+            </div>
+            <p class="hero-hint" id="hero-hint">Analysing…</p>
+          </div>
+          <figure class="ledger" aria-label="Illustrative contract note for a small delivery sell">
+            <figcaption>A ₹1,842 delivery sell, itemised the way it reaches the ledger</figcaption>
+            <table>
+              <tbody>
+                <tr><th scope="row">Sale value, 3 shares</th><td class="cr">1,842.00</td><td class="tag">credit</td></tr>
+                <tr><th scope="row">Brokerage, 0.1% capped at ₹20</th><td class="dr">1.84</td><td class="tag">debit</td></tr>
+                <tr class="flag"><th scope="row">DP charge, Groww</th><td class="dr">16.50</td><td class="tag">debit</td></tr>
+                <tr class="flag"><th scope="row">DP charge, CDSL</th><td class="dr">3.50</td><td class="tag">debit</td></tr>
+                <tr><th scope="row">GST at 18%</th><td class="dr">3.93</td><td class="tag">debit</td></tr>
+                <tr><th scope="row">Statutory levies</th><td class="dr">2.31</td><td class="tag">debit</td></tr>
+                <tr class="total"><th scope="row">Credited</th><td class="cr">1,813.92</td><td class="tag"></td></tr>
+              </tbody>
+            </table>
+            <p class="ledger-note">The two flagged lines are flat: the same on a ₹500 sell. They are also the lines reviews call hidden.</p>
+          </figure>
+        </div>
+
+        <div class="kpis" id="kpis" aria-live="polite"></div>
+
+        <div class="grid g-3">
+          <section class="card">
+            <header class="card-h"><h2>Themes by volume</h2><a class="card-link" href="#themes">All five</a></header>
+            <ol class="theme-list" id="theme-list"></ol>
+          </section>
+          <section class="card">
+            <header class="card-h"><h2>Rating mix</h2><span class="card-sub">reviews with text</span></header>
+            <div class="bars" id="rating-mix"></div>
+          </section>
+          <section class="card">
+            <header class="card-h"><h2>Reviews per week</h2><span class="card-sub">everything posted</span></header>
+            <div class="cols" id="weekly-volume"></div>
+          </section>
+        </div>
+
+        <section class="card headline" id="headline-card">
+          <div class="headline-side">
+            <p class="eyebrow light">The charge users keep misreading</p>
+            <h2 id="headline-title"></h2>
+            <div class="facts" id="headline-facts"></div>
+            <div class="row"><a class="btn primary" href="#explainer">Read the explainer</a><a class="btn ghost-light" href="#fee" id="headline-more">See the evidence</a></div>
+          </div>
+          <div class="headline-quote" id="headline-quote"></div>
+        </section>
+
+        <section class="card">
+          <header class="card-h"><h2>How this run went</h2><span class="card-sub">computed in your browser from <code>data/reviews.csv</code> by <code>src/engine.js</code>, no model in the loop</span></header>
+          <ol class="trace" id="trace"></ol>
+        </section>
+      </section>
+
+      <!-- ════════ reviews ════════ -->
+      <section class="view" id="view-reviews" hidden>
+        <header class="page-h">
+          <div><h1>Reviews</h1><p class="sub">Every review with text from the window, as the users wrote them. Display names were dropped at ingest; ids are hashed.</p></div>
+        </header>
+        <div class="toolbar" role="search">
+          <label class="field grow"><svg class="ic" aria-hidden="true"><use href="#i-search"/></svg><input type="search" id="q" placeholder="Search a word or phrase, e.g. DP charge, withdraw, otp" aria-label="Search reviews"></label>
+          <select id="f-theme" class="field" aria-label="Theme"><option value="">All themes</option></select>
+          <div class="chips" id="f-rating" role="group" aria-label="Rating">
+            <button type="button" data-r="" class="on">Any ★</button>
+            <button type="button" data-r="1">1★</button>
+            <button type="button" data-r="2">2★</button>
+            <button type="button" data-r="3">3★</button>
+            <button type="button" data-r="4">4★</button>
+            <button type="button" data-r="5">5★</button>
+          </div>
+          <label class="toggle"><input type="checkbox" id="f-fee"> Names a charge</label>
+          <select id="f-sort" class="field" aria-label="Sort"><option value="new">Newest first</option><option value="helpful">Most helpful</option><option value="low">Lowest rating</option><option value="long">Longest</option></select>
+        </div>
+        <div class="rv-stats" id="rv-stats"></div>
+        <p class="result-count" id="review-count"></p>
+        <div class="review-list" id="review-list"></div>
+        <div class="row center"><button class="btn" id="more" type="button" hidden>Show 40 more</button></div>
+      </section>
+
+      <!-- ════════ themes ════════ -->
+      <section class="view" id="view-themes" hidden>
+        <header class="page-h">
+          <div><h1>Themes</h1><p class="sub">A review goes to its strongest theme only, so nothing is counted twice. Reviews that match nothing are left out rather than forced into a bucket. The distinguishing words are the data's own, picked by log-odds against the rest of the corpus.</p></div>
+        </header>
+        <div class="theme-cards" id="theme-cards"></div>
+        <section class="card">
+          <header class="card-h"><h2>Three quotes that carry the week</h2><span class="card-sub">verbatim, spelling included · one per week of the window</span></header>
+          <div class="quotes" id="quotes"></div>
+        </section>
+      </section>
+
+      <!-- ════════ fee issue ════════ -->
+      <section class="view" id="view-fee" hidden>
+        <header class="page-h">
+          <div><h1>Fee issue</h1><p class="sub">A review counts as confused when it names a charge <em>and</em> says it was not expected: hidden, extra, undisclosed, <span lang="hi">bina bataye</span>, <span lang="hi">pata nahi</span>. Volume alone would always pick the best-known charge, so the score multiplies how often a charge is raised by how often it is misread.</p></div>
+          <a class="btn primary" href="#explainer">Read the explainer</a>
+        </header>
+        <div class="grid g-2">
+          <section class="card">
+            <header class="card-h"><h2>Score by charge</h2><span class="card-sub">mentions × confusion rate</span></header>
+            <div class="table-wrap flush">
+              <table class="fees" id="fees">
+                <thead><tr><th>Charge</th><th class="num">Named in</th><th class="num">Confused</th><th class="num">Rate</th><th class="num">Score</th></tr></thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </section>
+          <section class="card">
+            <header class="card-h"><h2>Confused mentions by week</h2><span class="card-sub" id="fee-trend"></span></header>
+            <div class="cols hot" id="fee-weekly"></div>
+            <p class="sub" id="fee-summary"></p>
+          </section>
+        </div>
+        <section class="card">
+          <header class="card-h"><h2>The reviews behind the score</h2><span class="card-sub" id="fee-evidence-sub"></span></header>
+          <div class="review-list compact" id="fee-evidence"></div>
+        </section>
+      </section>
+
+      <!-- ════════ pulse ════════ -->
+      <section class="view" id="view-pulse" hidden>
+        <header class="page-h">
+          <div><div class="h-row"><h1>Weekly product pulse</h1><span class="budget" id="pulse-budget"></span></div><p class="sub">For the product team, every Monday. Top themes, the quotes behind them, one observation about what is going wrong, and three things to do. Capped at 250 words, so it gets read.</p></div>
+          <div class="row tight">
+            <button class="btn" data-copy="pulse" type="button">Copy</button>
+            <a class="btn" id="dl-pulse" download="weekly-pulse.md">Download .md</a>
+            <a class="btn primary" href="#approve">Log through MCP</a>
+          </div>
+        </header>
+        <div class="doc-layout">
+          <article class="doc" id="pulse"></article>
+          <aside class="rail">
+            <h3>Checks on this note</h3>
+            <ul class="checks" id="pulse-checks"></ul>
+            <p class="rail-note">Each item is asserted again by <code>eval/run_eval.js</code> on every commit.</p>
+          </aside>
+        </div>
+      </section>
+
+      <!-- ════════ explainer ════════ -->
+      <section class="view" id="view-explainer" hidden>
+        <header class="page-h">
+          <div><div class="h-row"><h1>Fee explainer</h1><span class="budget" id="exp-budget"></span></div><p class="sub">For support to paste when a user asks why something was deducted. Facts and figures from official pages only, in the order a confused user asks them. No reassurance, no recommendation, and a date so it cannot go stale silently.</p></div>
+          <div class="row tight">
+            <button class="btn" data-copy="explainer" type="button">Copy</button>
+            <a class="btn" href="sources.csv">Sources</a>
+            <a class="btn primary" href="#approve">Log through MCP</a>
+          </div>
+        </header>
+        <div class="doc-layout">
+          <article class="doc explainer" id="explainer"></article>
+          <aside class="rail">
+            <h3>Checks on this snippet</h3>
+            <ul class="checks" id="exp-checks"></ul>
+            <p class="rail-note">Every rate the bullets assert is traced to <code>sources.csv</code>, and a tone check fails the build on recommendation words.</p>
+          </aside>
+        </div>
+      </section>
+
+      <!-- ════════ approve ════════ -->
+      <section class="view" id="view-approve" hidden>
+        <header class="page-h">
+          <div><h1>Approve &amp; log</h1><p class="sub">Two MCP tools are waiting. The server (the same <code>src/mcp-core.js</code> that <code>mcp/server.js</code> runs over stdio, hosted here in the page) has refused both calls once and returned exactly what it would write, with a single-use token bound to that payload. Read the payloads, then decide.</p><p class="sub" id="log-state"></p></div>
+        </header>
+
+        <div class="gate-layout">
+          <div class="payloads">
+            <div class="payload">
+              <header><span class="tool">notes.append_entry</span><span class="dest">product-pulse-log.md, kept in this browser</span></header>
+              <pre id="pay-doc"></pre>
+            </div>
+            <div class="payload">
+              <header><span class="tool">email.create_draft</span><span class="dest">draft only, never sent</span></header>
+              <pre id="pay-mail"></pre>
+            </div>
+          </div>
+          <div class="decide" id="decide">
+            <div class="decide-q">Approve both actions?</div>
+            <p class="decide-sub">Approving appends one entry to the product log and creates one email draft. Nothing is sent.</p>
+            <div class="decide-b">
+              <button class="btn primary lg" id="approve" type="button">Approve and log</button>
+              <button class="btn danger lg" id="reject" type="button">Reject</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="console" id="console" hidden>
+          <header>MCP transcript<span id="console-note"></span></header>
+          <pre id="console-out"></pre>
+        </div>
+
+        <div id="results" hidden>
+          <div class="grid g-2 top-gap">
+            <section class="card">
+              <header class="card-h"><h2>Appended to the product log</h2></header>
+              <article class="doc flat logentry" id="logentry"></article>
+              <p class="sub" id="log-meta"></p>
+              <div class="row">
+                <button class="btn" data-copy="logentry" type="button">Copy the entry</button>
+                <a class="btn" id="dl-log" download="product-pulse-log.md">Download the whole log</a>
+                <a class="btn" href="docs/product-pulse-log.md">On-disk log in the repo</a>
+              </div>
+            </section>
+            <section class="card">
+              <header class="card-h"><h2>Email draft</h2><span class="draft-flag">Draft, not sent</span></header>
+              <div class="mail" id="mail"></div>
+              <div class="row">
+                <button class="btn" data-copy="mailbody" type="button">Copy the draft</button>
+                <a class="btn" id="dl-eml" download="email-draft.eml">Download .eml</a>
+                <a class="btn" id="gmail" target="_blank" rel="noopener">Open in Gmail</a>
+              </div>
+              <p class="sub">The .eml carries <code>X-Unsent: 1</code>, so a mail client opens it as an editable draft. Gmail opens a compose window. Neither sends.</p>
+            </section>
+          </div>
+          <p class="sub"><button class="linkish" id="clear-log" type="button">Clear this browser's log and draft</button> to start from an empty document.</p>
+        </div>
+      </section>
+
+      <footer class="colophon">
+        <p><strong>What this is.</strong> A prototype for the NextLeap PM Fellowship, Milestone 5 (RAGs &amp; Context Engineering). The product analysed is Groww, carried over from Milestone 1. Soapbox is the box people stand on to be heard; this is what you do once you have listened.</p>
+        <p><strong>What it is not.</strong> Not affiliated with or endorsed by Groww. Reviews are public Google Play reviews, quoted for study. Charge figures were read from official pages on 13 Oct 2026 and can change; the fee explainer carries that date for exactly this reason. Nothing here is investment advice.</p>
+      </footer>
+
+      <p class="fallback" id="fallback" hidden></p>
+    </main>
   </div>
-  <nav class="tabs" aria-label="Sections">
-    <div class="tabs-in">
-      <a href="#overview" data-view="overview">Overview</a>
-      <a href="#reviews" data-view="reviews">Reviews <span class="count" id="n-reviews"></span></a>
-      <a href="#themes" data-view="themes">Themes <span class="count" id="n-themes"></span></a>
-      <a href="#fee" data-view="fee">Fee issue</a>
-      <a href="#pulse" data-view="pulse">Weekly pulse</a>
-      <a href="#explainer" data-view="explainer">Fee explainer</a>
-      <a href="#approve" data-view="approve">Approve &amp; log <span class="count" id="n-pending"></span></a>
-    </div>
-  </nav>
-</header>
-
-<main id="main">
-
-  <!-- ════════ overview ════════ -->
-  <section class="view" id="view-overview">
-    <div class="hero">
-      <div class="hero-copy">
-        <p class="eyebrow">Week ending <span id="hero-date">…</span></p>
-        <h1>Users don't read the pricing page.<br>They read the ledger, afterwards.</h1>
-        <p class="lede">Earful reads every public Groww review from the last twelve weeks, sorts the noise into five themes, and finds the one charge people keep saying they never expected. Out of it come a weekly note for the product team and an explanation support can paste. Neither reaches a tool until you approve it.</p>
-        <div class="hero-cta">
-          <a class="btn primary" href="#pulse">Read this week's pulse</a>
-          <a class="btn" href="#reviews">Browse the reviews</a>
-          <span class="hero-hint" id="hero-hint">Analysing…</span>
-        </div>
-      </div>
-      <figure class="ledger" aria-label="Illustrative contract note for a small delivery sell">
-        <figcaption>A ₹1,842 delivery sell, itemised the way it reaches the ledger</figcaption>
-        <table>
-          <tbody>
-            <tr><th scope="row">Sale value, 3 shares</th><td class="cr">1,842.00</td><td class="tag">credit</td></tr>
-            <tr><th scope="row">Brokerage, 0.1% capped at ₹20</th><td class="dr">1.84</td><td class="tag">debit</td></tr>
-            <tr class="flag"><th scope="row">DP charge, Groww</th><td class="dr">16.50</td><td class="tag">debit</td></tr>
-            <tr class="flag"><th scope="row">DP charge, CDSL</th><td class="dr">3.50</td><td class="tag">debit</td></tr>
-            <tr><th scope="row">GST at 18%</th><td class="dr">3.93</td><td class="tag">debit</td></tr>
-            <tr><th scope="row">Statutory levies</th><td class="dr">2.31</td><td class="tag">debit</td></tr>
-            <tr class="total"><th scope="row">Credited</th><td class="cr">1,813.92</td><td class="tag"></td></tr>
-          </tbody>
-        </table>
-        <p class="ledger-note">The two flagged lines are flat: they are the same on a ₹500 sell. They are also the lines reviews call hidden.</p>
-      </figure>
-    </div>
-
-    <div class="kpis" id="kpis" aria-live="polite"></div>
-
-    <div class="grid-2">
-      <section class="card">
-        <header class="card-h"><h2>Rating mix</h2><span class="card-sub">reviews with text, in the window</span></header>
-        <div class="bars" id="rating-mix"></div>
-      </section>
-      <section class="card">
-        <header class="card-h"><h2>Reviews per week</h2><span class="card-sub">all reviews, text or not</span></header>
-        <div class="cols" id="weekly-volume"></div>
-      </section>
-    </div>
-
-    <div class="grid-2">
-      <section class="card">
-        <header class="card-h"><h2>What the earful is about</h2><a class="card-link" href="#themes">All five themes</a></header>
-        <ol class="theme-list" id="theme-list"></ol>
-      </section>
-      <section class="card headline" id="headline-card">
-        <header class="card-h"><h2>The charge users keep misreading</h2><a class="card-link" href="#fee">Evidence</a></header>
-        <div id="headline"></div>
-      </section>
-    </div>
-
-    <details class="trace-box">
-      <summary>How this run went, step by step</summary>
-      <ol class="trace" id="trace"></ol>
-      <p class="sub">Every number on this site is computed from <code>data/reviews.csv</code> by <code>src/engine.js</code>, in your browser, with no model in the loop. The same file always produces the same note.</p>
-    </details>
-  </section>
-
-  <!-- ════════ reviews ════════ -->
-  <section class="view" id="view-reviews" hidden>
-    <header class="view-h">
-      <h1>Every review, in one place</h1>
-      <p class="sub">All the reviews with text from the twelve-week window. Filter by theme, rating or a word, and read them as the users wrote them. Display names were dropped at ingest; ids are hashed.</p>
-    </header>
-    <div class="toolbar" role="search">
-      <input type="search" id="q" placeholder="Search the reviews, e.g. DP charge, withdraw, otp" aria-label="Search reviews">
-      <select id="f-theme" aria-label="Theme"><option value="">All themes</option></select>
-      <div class="chips" id="f-rating" role="group" aria-label="Rating">
-        <button type="button" data-r="" class="on">Any ★</button>
-        <button type="button" data-r="1">1★</button>
-        <button type="button" data-r="2">2★</button>
-        <button type="button" data-r="3">3★</button>
-        <button type="button" data-r="4">4★</button>
-        <button type="button" data-r="5">5★</button>
-      </div>
-      <label class="toggle"><input type="checkbox" id="f-fee"> Mentions a charge</label>
-      <select id="f-sort" aria-label="Sort"><option value="new">Newest first</option><option value="helpful">Most helpful</option><option value="low">Lowest rating</option><option value="long">Longest</option></select>
-    </div>
-    <p class="result-count" id="review-count"></p>
-    <div class="review-list" id="review-list"></div>
-    <div class="row center"><button class="btn" id="more" type="button" hidden>Show 40 more</button></div>
-  </section>
-
-  <!-- ════════ themes ════════ -->
-  <section class="view" id="view-themes" hidden>
-    <header class="view-h">
-      <h1>Five themes, and the words that mark them</h1>
-      <p class="sub">A review goes to its strongest theme only, so nothing is counted twice. Reviews that match nothing are left out rather than forced into the nearest bucket. The distinguishing words are the data's own, picked by log-odds against the rest of the corpus.</p>
-    </header>
-    <div class="theme-cards" id="theme-cards"></div>
-    <section class="card">
-      <header class="card-h"><h2>Three quotes that carry the week</h2><span class="card-sub">verbatim, spelling included; one per week of the window</span></header>
-      <div class="quotes" id="quotes"></div>
-    </section>
-  </section>
-
-  <!-- ════════ fee issue ════════ -->
-  <section class="view" id="view-fee" hidden>
-    <header class="view-h">
-      <h1>Which charge is misunderstood, not merely disliked</h1>
-      <p class="sub">A review counts as confused when it names a charge <em>and</em> says it was not expected: hidden, extra, undisclosed, <span lang="hi">bina bataye</span>, <span lang="hi">pata nahi</span>. Volume alone would always pick the best-known charge, so the score multiplies how often a charge is raised by how often it is misread.</p>
-    </header>
-    <div class="grid-2 fee-top">
-      <section class="card">
-        <header class="card-h"><h2>Score by charge</h2></header>
-        <div class="table-wrap flush">
-          <table class="fees" id="fees">
-            <thead><tr><th>Charge</th><th class="num">Named in</th><th class="num">Confused</th><th class="num">Rate</th><th class="num">Score</th></tr></thead>
-            <tbody></tbody>
-          </table>
-        </div>
-      </section>
-      <section class="card">
-        <header class="card-h"><h2>Confused mentions by week</h2><span class="card-sub" id="fee-trend"></span></header>
-        <div class="cols" id="fee-weekly"></div>
-        <p class="sub" id="fee-summary"></p>
-        <div class="row"><a class="btn primary" href="#explainer">Read the explainer support will paste</a></div>
-      </section>
-    </div>
-    <section class="card">
-      <header class="card-h"><h2>The reviews behind the score</h2><span class="card-sub" id="fee-evidence-sub"></span></header>
-      <div class="review-list compact" id="fee-evidence"></div>
-    </section>
-  </section>
-
-  <!-- ════════ pulse ════════ -->
-  <section class="view" id="view-pulse" hidden>
-    <header class="view-h">
-      <div class="h-row"><h1>Weekly product pulse</h1><span class="budget" id="pulse-budget"></span></div>
-      <p class="sub">For the product team, every Monday. The top themes, the quotes behind them, one observation about what is going wrong, and three things to do about it. Capped at 250 words, so it gets read.</p>
-    </header>
-    <article class="doc" id="pulse"></article>
-    <div class="row">
-      <button class="btn" data-copy="pulse" type="button">Copy the note</button>
-      <a class="btn" id="dl-pulse" download="weekly-pulse.md">Download as Markdown</a>
-      <a class="btn primary" href="#approve">Log it through MCP</a>
-    </div>
-  </section>
-
-  <!-- ════════ explainer ════════ -->
-  <section class="view" id="view-explainer" hidden>
-    <header class="view-h">
-      <div class="h-row"><h1>Fee explainer</h1><span class="budget" id="exp-budget"></span></div>
-      <p class="sub">For support to paste when a user asks why something was deducted. Facts and figures from official pages only, in the order a confused user asks them. No reassurance, no recommendation, and a date so it cannot go stale silently.</p>
-    </header>
-    <article class="doc explainer" id="explainer"></article>
-    <div class="row">
-      <button class="btn" data-copy="explainer" type="button">Copy the snippet</button>
-      <a class="btn" href="sources.csv">All sources</a>
-      <a class="btn primary" href="#approve">Log it through MCP</a>
-    </div>
-  </section>
-
-  <!-- ════════ approve ════════ -->
-  <section class="view" id="view-approve" hidden>
-    <header class="view-h">
-      <h1>Nothing is logged until you approve it</h1>
-      <p class="sub">Two MCP tools are waiting. The server (the same <code>src/mcp-core.js</code> that <code>mcp/server.js</code> runs over stdio, hosted here in the page) has refused both calls once and returned exactly what it would write, with a single-use token bound to that payload. Read the payloads, then decide.</p>
-      <p class="sub" id="log-state"></p>
-    </header>
-
-    <div class="payloads">
-      <div class="payload">
-        <header><span class="tool">notes.append_entry</span><span class="dest">product-pulse-log.md, kept in this browser</span></header>
-        <pre id="pay-doc"></pre>
-      </div>
-      <div class="payload">
-        <header><span class="tool">email.create_draft</span><span class="dest">draft only, never sent</span></header>
-        <pre id="pay-mail"></pre>
-      </div>
-    </div>
-
-    <div class="decide" id="decide">
-      <div class="decide-q">Approve both actions?</div>
-      <div class="decide-b">
-        <button class="btn primary" id="approve" type="button">Approve and log</button>
-        <button class="btn danger" id="reject" type="button">Reject</button>
-      </div>
-    </div>
-
-    <div class="console" id="console" hidden>
-      <header>MCP transcript<span id="console-note"></span></header>
-      <pre id="console-out"></pre>
-    </div>
-
-    <div id="results" hidden>
-      <h2 class="h2">Appended to the product log</h2>
-      <article class="doc logentry" id="logentry"></article>
-      <p class="sub" id="log-meta"></p>
-      <div class="row">
-        <button class="btn" data-copy="logentry" type="button">Copy the entry</button>
-        <a class="btn" id="dl-log" download="product-pulse-log.md">Download the whole log</a>
-        <a class="btn" href="docs/product-pulse-log.md">The on-disk log in the repo</a>
-      </div>
-      <h2 class="h2">Email draft</h2>
-      <div class="mail" id="mail"></div>
-      <div class="row">
-        <button class="btn" data-copy="mailbody" type="button">Copy the draft</button>
-        <a class="btn" id="dl-eml" download="email-draft.eml">Download .eml</a>
-        <a class="btn" id="gmail" target="_blank" rel="noopener">Open in Gmail</a>
-      </div>
-      <p class="sub">The .eml carries <code>X-Unsent: 1</code>, so a mail client opens it as an editable draft. Gmail opens a compose window. Neither sends.</p>
-      <p class="sub"><button class="linkish" id="clear-log" type="button">Clear this browser's log and draft</button> to start from an empty document.</p>
-    </div>
-  </section>
-
-  <footer class="colophon">
-    <p><strong>What this is.</strong> A prototype for the NextLeap PM Fellowship, Milestone 5 (RAGs &amp; Context Engineering). The product is Groww, carried over from Milestone 1. An earful is what a review page gives you; this is what you do with it.</p>
-    <p><strong>What it is not.</strong> Not affiliated with or endorsed by Groww. Reviews are public Google Play reviews, quoted for study. Charge figures were read from official pages on 13 Oct 2026 and can change; the fee explainer carries that date for exactly this reason. Nothing here is investment advice.</p>
-  </footer>
-
-  <p class="fallback" id="fallback" hidden></p>
-</main>
+</div>
 
 <script type="module" src="app.js"></script>
 </body>

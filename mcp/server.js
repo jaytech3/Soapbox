@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /* ──────────────────────────────────────────────────────────────────────────
-   Earful MCP server — stdio, JSON-RPC 2.0, no dependencies.
+   Soapbox MCP server — stdio, JSON-RPC 2.0, no dependencies.
 
    Two tools, both gated. Calling either one without an approval token does
    not perform the action: the server returns the exact payload it would
@@ -18,7 +18,7 @@
 
    Run:  node mcp/server.js
    Try:  node mcp/client-demo.js
-   Env:  EARFUL_DOC=<path>  EARFUL_OUT=<dir>   (where to write; eval uses these)
+   Env:  SOAPBOX_DOC=<path>  SOAPBOX_OUT=<dir>   (where to write; eval uses these)
    ────────────────────────────────────────────────────────────────────────── */
 
 import fs from 'fs';
@@ -28,8 +28,8 @@ import { fileURLToPath } from 'url';
 import { createServer } from '../src/mcp-core.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const DOC = path.resolve(ROOT, process.env.EARFUL_DOC || path.join('docs', 'product-pulse-log.md'));
-const OUT = path.resolve(ROOT, process.env.EARFUL_OUT || 'out');
+const DOC = path.resolve(ROOT, process.env.SOAPBOX_DOC || path.join('docs', 'product-pulse-log.md'));
+const OUT = path.resolve(ROOT, process.env.SOAPBOX_OUT || 'out');
 const DRAFT = path.join(OUT, 'email-draft.eml');
 const rel = p => path.relative(ROOT, p).split(path.sep).join('/');
 

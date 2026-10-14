@@ -1,5 +1,5 @@
 /* ──────────────────────────────────────────────────────────────────────────
-   Earful — the product shell.
+   Soapbox — the product shell.
    The pipeline is src/engine.js, unchanged from the one cli/run.js uses.
    The MCP server is src/mcp-core.js, unchanged from the one mcp/server.js
    wraps in stdio: this page hosts it in-process, with Web Crypto for the
@@ -17,10 +17,12 @@ const nf = n => Number(n).toLocaleString('en-IN');
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const stars = n => '★'.repeat(n) + '☆'.repeat(5 - n);
 const reduceMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-const fmtDate = iso => { const [y, m, d] = iso.split('-'); return `${Number(d)} ${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][Number(m) - 1]} ${y}`; };
-const fmtShort = iso => { const [, m, d] = iso.split('-'); return `${Number(d)} ${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][Number(m) - 1]}`; };
+const MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const fmtDate = iso => { const [y, m, d] = iso.split('-'); return `${Number(d)} ${MON[Number(m) - 1]} ${y}`; };
+const fmtShort = iso => { const [, m, d] = iso.split('-'); return `${Number(d)} ${MON[Number(m) - 1]}`; };
+const ICON = name => `<svg class="ic" aria-hidden="true"><use href="#${name}"/></svg>`;
 
-let ROWS = [], META = null, RESULT = null, DOC_ENTRY = null, EMAIL = null;
+let ROWS = [], META = null, RESULT = null, DOC_ENTRY = null, EMAIL = null, SOURCES = '';
 let THEME_OF = new Map();          // review_id → theme
 let FEE_OF = new Map();            // review_id → true when any charge is named
 
@@ -50,23 +52,32 @@ function md(src) {
 
 /* ── routing: one view at a time, addressable by hash ─────────────────── */
 
-const VIEWS = ['overview', 'reviews', 'themes', 'fee', 'pulse', 'explainer', 'approve'];
+const VIEWS = { overview: 'Overview', reviews: 'Reviews', themes: 'Themes', fee: 'Fee issue', pulse: 'Weekly pulse', explainer: 'Fee explainer', approve: 'Approve & log' };
 function route() {
   const name = (location.hash || '#overview').slice(1).split('?')[0];
-  const view = VIEWS.includes(name) ? name : 'overview';
-  for (const v of VIEWS) $(`view-${v}`).hidden = v !== view;
-  document.querySelectorAll('.tabs a').forEach(a => {
+  const view = VIEWS[name] ? name : 'overview';
+  for (const v of Object.keys(VIEWS)) $(`view-${v}`).hidden = v !== view;
+  document.querySelectorAll('.nav a').forEach(a => {
     if (a.dataset.view === view) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
   });
+  $('mobile-view').textContent = VIEWS[view];
+  closeSide();
   window.scrollTo({ top: 0, behavior: 'auto' });
   if (view === 'reviews') renderReviews();
 }
 window.addEventListener('hashchange', route);
 
+/* ── sidebar on small screens ── */
+const openSide = () => { $('side').classList.add('open'); $('scrim').classList.add('show'); };
+const closeSide = () => { $('side').classList.remove('open'); $('scrim').classList.remove('show'); };
+$('side-open').addEventListener('click', openSide);
+$('side-close').addEventListener('click', closeSide);
+$('scrim').addEventListener('click', closeSide);
+
 /* ── the document and the draft live in this browser ──────────────────── */
 
-const LOG_KEY = 'earful.product-pulse-log.md';
-const DRAFT_KEY = 'earful.email-draft.eml';
+const LOG_KEY = 'soapbox.product-pulse-log.md';
+const DRAFT_KEY = 'soapbox.email-draft.eml';
 const mem = {};
 const storage = {
   get(k) { try { return localStorage.getItem(k) ?? mem[k] ?? null; } catch { return mem[k] ?? null; } },
@@ -150,60 +161,10 @@ const call = (name, args, note) => rpc('tools/call', { name, arguments: args }, 
 
 /* ── overview ─────────────────────────────────────────────────────────── */
 
-function renderOverview(r) {
-  const m = r.meta;
-  $('hero-date').textContent = fmtDate(m.asOf);
-  $('window-chip').textContent = `Google Play · ${fmtShort(m.from)} – ${fmtDate(m.asOf)}`;
-  $('hero-hint').textContent = `${nf(m.corpusSize)} reviews read, ${r.themes.length} themes, 1 charge explained`;
-
-  const low = m.ratingMix.filter(x => x.stars <= 2).reduce((a, x) => a + x.count, 0);
-  const total = m.ratingMix.reduce((a, x) => a + x.count, 0);
-  const avg = m.ratingMix.reduce((a, x) => a + x.stars * x.count, 0) / total;
-  const matched = m.corpusSize - m.unassigned;
-  $('kpis').innerHTML = [
-    ['Reviews read', nf(m.corpusSize), `with text, of ${nf(m.totalInWindow)} posted`],
-    ['Average rating', avg.toFixed(2) + '★', 'across reviews with text'],
-    ['One and two star', `${Math.round(low / total * 100)}%`, `${nf(low)} reviews`],
-    ['Sorted into themes', `${Math.round(matched / m.corpusSize * 100)}%`, `${nf(m.unassigned)} matched none, left out`],
-    ['Confused about a charge', nf(r.feeSignal.confused), `of ${nf(r.feeSignal.mentions)} naming ${r.feeSignal.short}`]
-  ].map(([k, v, s]) => `<div><dt>${esc(k)}</dt><dd>${esc(v)}<small>${esc(s)}</small></dd></div>`).join('');
-
-  const maxR = Math.max(...m.ratingMix.map(x => x.count));
-  $('rating-mix').innerHTML = [...m.ratingMix].reverse().map(x =>
-    `<div class="bar ${x.stars <= 2 ? 'neg' : x.stars >= 4 ? 'pos' : ''}" title="${x.count} reviews gave ${x.stars} stars"><span class="lab">${x.stars}★</span><span class="track"><span class="fill" style="width:${Math.round(x.count / maxR * 100)}%"></span></span><span class="val">${nf(x.count)}</span></div>`
-  ).join('');
-
-  const weeks = weeksOf(m.from, m.asOf);
-  const counts = weeks.map(w => ROWS.filter(x => x.date >= w.from && x.date <= w.to).length);
-  const maxW = Math.max(...counts);
-  $('weekly-volume').innerHTML = weeks.map((w, i) =>
-    `<div class="col" title="${counts[i]} reviews, ${fmtShort(w.from)} to ${fmtShort(w.to)}"><b>${i === counts.indexOf(maxW) || i === weeks.length - 1 ? nf(counts[i]) : ''}</b><i style="height:${Math.round(counts[i] / maxW * 100)}%"></i><small>${i === 0 || i === weeks.length - 1 ? fmtShort(w.to) : ''}</small></div>`
-  ).join('');
-
-  const maxC = Math.max(...r.themes.map(t => t.count));
-  $('theme-list').innerHTML = r.themes.map((t, i) =>
-    `<li class="${t.polarity === 'positive' ? 'pos' : 'neg'}"><span class="n">${i + 1}</span><div><div class="t">${esc(t.label)}</div><div class="track"><span class="fill" style="width:${Math.round(t.count / maxC * 100)}%"></span></div></div><span class="v">${nf(t.count)}</span></li>`
-  ).join('');
-
-  const f = r.feeSignal, q = r.quotes[0];
-  $('headline').innerHTML = `
-    <p class="big">${esc(f.label)}</p>
-    <div class="facts">
-      <div><b>${nf(f.mentions)}</b>reviews name it</div>
-      <div><b>${nf(f.confused)}</b>did not expect it</div>
-      <div><b>${f.confusionRate}%</b>confusion rate</div>
-      <div><b>${esc(r.pulse.trend)}</b>week on week</div>
-    </div>
-    <blockquote><p>${esc(q.text)}</p><footer>${stars(q.rating)} · ${fmtDate(q.date)}</footer></blockquote>
-    <div class="row" style="margin-top:0"><a class="btn primary" href="#explainer">Read the explainer</a><a class="btn" href="#fee">See all ${nf(f.confused)} reviews</a></div>`;
-
-  $('trace').innerHTML = r.trace.map(t => `<li><b>${esc(t.stage)}</b> &nbsp;${esc(t.detail)}</li>`).join('');
-}
-
 function weeksOf(from, asOf) {
   const out = [];
   let end = new Date(asOf + 'T00:00:00Z');
-  while (true) {
+  for (;;) {
     const start = new Date(+end - 6 * 864e5);
     const s = start.toISOString().slice(0, 10), e = end.toISOString().slice(0, 10);
     if (e < from) break;
@@ -211,6 +172,52 @@ function weeksOf(from, asOf) {
     end = new Date(+start - 864e5);
   }
   return out;
+}
+const countBy = (rows, weeks) => weeks.map(w => rows.filter(x => x.date >= w.from && x.date <= w.to).length);
+
+function renderOverview(r) {
+  const m = r.meta;
+  $('hero-date').textContent = fmtDate(m.asOf);
+  $('ws-window').textContent = `${m.windowWeeks} weeks · ${fmtShort(m.from)} – ${fmtDate(m.asOf)}`;
+  $('hero-hint').textContent = `${nf(m.corpusSize)} reviews read · ${r.themes.length} themes · 1 charge explained`;
+
+  const low = m.ratingMix.filter(x => x.stars <= 2).reduce((a, x) => a + x.count, 0);
+  const total = m.ratingMix.reduce((a, x) => a + x.count, 0);
+  const avg = m.ratingMix.reduce((a, x) => a + x.stars * x.count, 0) / total;
+  const matched = m.corpusSize - m.unassigned;
+  $('kpis').innerHTML = [
+    ['', 'Reviews read', nf(m.corpusSize), `with text, of ${nf(m.totalInWindow)} posted`],
+    ['g', 'Average rating', avg.toFixed(2) + '★', 'across reviews with text'],
+    ['r', 'One and two star', `${Math.round(low / total * 100)}%`, `${nf(low)} reviews`],
+    ['', 'Sorted into themes', `${Math.round(matched / m.corpusSize * 100)}%`, `${nf(m.unassigned)} matched none, left out`],
+    ['a', 'Confused about a charge', nf(r.feeSignal.confused), `of ${nf(r.feeSignal.mentions)} naming ${r.feeSignal.short}`]
+  ].map(([c, k, v, s]) => `<div class="${c}"><dt>${esc(k)}</dt><dd>${esc(v)}<small>${esc(s)}</small></dd></div>`).join('');
+
+  const maxR = Math.max(...m.ratingMix.map(x => x.count));
+  $('rating-mix').innerHTML = [...m.ratingMix].reverse().map(x =>
+    `<div class="bar ${x.stars <= 2 ? 'neg' : x.stars >= 4 ? 'pos' : ''}" title="${x.count} reviews gave ${x.stars} stars"><span class="lab">${x.stars}★</span><span class="track"><span class="fill" style="width:${Math.round(x.count / maxR * 100)}%"></span></span><span class="val">${nf(x.count)}</span></div>`
+  ).join('');
+
+  const weeks = weeksOf(m.from, m.asOf);
+  const counts = countBy(ROWS, weeks);
+  const maxW = Math.max(...counts);
+  $('weekly-volume').innerHTML = weeks.map((w, i) =>
+    `<div class="col" title="${counts[i]} reviews, ${fmtShort(w.from)} to ${fmtShort(w.to)}"><b>${i === counts.indexOf(maxW) || i === weeks.length - 1 ? nf(counts[i]) : ''}</b><i style="height:${Math.round(counts[i] / maxW * 100)}%"></i><small>${i === 0 || i === weeks.length - 1 ? fmtShort(w.to) : ''}</small></div>`
+  ).join('');
+
+  const maxC = Math.max(...r.themes.map(t => t.count));
+  $('theme-list').innerHTML = r.themes.map((t, i) =>
+    `<li class="${t.polarity === 'positive' ? 'pos' : 'neg'}"><div><div class="t"><span class="n">${i + 1}</span>${esc(t.label)}</div><div class="track"><span class="fill" style="width:${Math.round(t.count / maxC * 100)}%"></span></div></div><span class="v">${nf(t.count)}</span></li>`
+  ).join('');
+
+  const f = r.feeSignal, q = r.quotes[0];
+  $('headline-title').textContent = f.label;
+  $('headline-facts').innerHTML = [[nf(f.mentions), 'reviews name it'], [nf(f.confused), 'did not expect it'], [`${f.confusionRate}%`, 'confusion rate'], [r.pulse.trend, 'week on week']]
+    .map(([b, k]) => `<div><b>${esc(b)}</b>${esc(k)}</div>`).join('');
+  $('headline-more').textContent = `See all ${nf(f.confused)} reviews`;
+  $('headline-quote').innerHTML = `<blockquote>${esc(q.text)}</blockquote><footer>${stars(q.rating)} · ${fmtDate(q.date)} · ${esc(q.review_id)}</footer>`;
+
+  $('trace').innerHTML = r.trace.map(t => `<li><b>${esc(t.stage)}</b><span>${esc(t.detail)}</span></li>`).join('');
 }
 
 /* ── reviews ──────────────────────────────────────────────────────────── */
@@ -223,7 +230,7 @@ function reviewCard(r, q = '') {
   const text = q ? esc(r.text).replace(new RegExp(`(${q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'ig'), '<mark>$1</mark>') : esc(r.text);
   return `<article class="review">
     <div class="meta">
-      <span class="stars ${r.rating >= 4 ? 'hi' : ''}" aria-label="${r.rating} out of 5">${stars(r.rating)}</span>
+      <span class="stars ${r.rating >= 4 ? 'hi' : r.rating === 3 ? 'mid' : ''}" aria-label="${r.rating} out of 5">${stars(r.rating)}</span>
       <span>${fmtDate(r.date)}</span>
       ${t ? `<span class="tag">${esc(t.label)}</span>` : '<span class="tag none">no theme</span>'}
       ${FEE_OF.get(r.review_id) ? '<span class="tag fee">names a charge</span>' : ''}
@@ -260,13 +267,27 @@ function renderReviews() {
   if (F.fee) parts.push('names a charge');
   if (F.q.trim()) parts.push(`"${F.q.trim()}"`);
   $('review-count').textContent = `${nf(list.length)} of ${nf(RESULT.meta.corpusSize)} reviews${parts.length ? ' · ' + parts.join(' · ') : ''}`;
+
+  const n = list.length || 1;
+  const mix = [1, 2, 3, 4, 5].map(s => list.filter(r => r.rating === s).length);
+  const maxM = Math.max(1, ...mix);
+  const avg = list.reduce((a, r) => a + r.rating, 0) / n;
+  const low = mix[0] + mix[1];
+  const fee = list.filter(r => FEE_OF.get(r.review_id)).length;
+  $('rv-stats').innerHTML = `
+    <div><dt>Matching</dt><dd>${nf(list.length)}</dd></div>
+    <div><dt>Average rating</dt><dd>${list.length ? avg.toFixed(2) + '★' : '–'}</dd></div>
+    <div><dt>One and two star</dt><dd>${list.length ? Math.round(low / n * 100) + '%' : '–'}</dd></div>
+    <div><dt>Rating spread</dt><div class="mini" title="1★ to 5★, left to right">${mix.map((c, i) => `<i class="${i < 2 ? 'lo' : i > 2 ? 'hi' : ''}" style="height:${Math.max(6, Math.round(c / maxM * 100))}%" title="${i + 1}★: ${c}"></i>`).join('')}</div></div>`;
+  void fee;
+
   $('review-list').innerHTML = shown.length ? shown.map(r => reviewCard(r, F.q.trim())).join('') : '<p class="empty">No review matches. Loosen a filter.</p>';
   $('more').hidden = shown.length >= list.length;
   $('more').textContent = `Show ${Math.min(PAGE, list.length - shown.length)} more of ${nf(list.length - shown.length)} left`;
 }
 
 function wireReviews() {
-  $('q').addEventListener('input', e => { F.q = e.target.value; F.page = 1; renderReviews(); });
+  $('q').addEventListener('input', e => { F.q = e.target.value; F.page = 1; $('cmd').value = e.target.value; renderReviews(); });
   $('f-theme').addEventListener('change', e => { F.theme = e.target.value; F.page = 1; renderReviews(); });
   $('f-sort').addEventListener('change', e => { F.sort = e.target.value; F.page = 1; renderReviews(); });
   $('f-fee').addEventListener('change', e => { F.fee = e.target.checked; F.page = 1; renderReviews(); });
@@ -277,12 +298,21 @@ function wireReviews() {
     renderReviews();
   });
   $('more').addEventListener('click', () => { F.page++; renderReviews(); });
+
+  /* the sidebar search is a shortcut into the reviews view */
+  $('cmd').addEventListener('input', e => {
+    F.q = e.target.value; F.page = 1; $('q').value = e.target.value;
+    if (location.hash !== '#reviews') location.hash = '#reviews'; else renderReviews();
+  });
+  document.addEventListener('keydown', e => {
+    if (e.key === '/' && !/input|textarea|select/i.test(document.activeElement?.tagName || '')) { e.preventDefault(); $('cmd').focus(); }
+  });
 }
 
-/** Open the reviews view with a theme already chosen. */
+/** Open the reviews view with a filter already chosen. */
 function browse({ theme = '', fee = false } = {}) {
   F.theme = theme; F.fee = fee; F.rating = ''; F.q = ''; F.page = 1;
-  $('f-theme').value = theme; $('f-fee').checked = fee; $('q').value = '';
+  $('f-theme').value = theme; $('f-fee').checked = fee; $('q').value = ''; $('cmd').value = '';
   $('f-rating').querySelectorAll('button').forEach(x => x.classList.toggle('on', x.dataset.r === ''));
   location.hash = '#reviews';
   renderReviews();
@@ -290,9 +320,18 @@ function browse({ theme = '', fee = false } = {}) {
 
 /* ── themes ───────────────────────────────────────────────────────────── */
 
+function sparkline(counts, color) {
+  const w = 160, h = 34, max = Math.max(1, ...counts);
+  const pts = counts.map((c, i) => `${(i / (counts.length - 1)) * w},${h - 3 - (c / max) * (h - 6)}`);
+  return `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" aria-hidden="true"><polyline points="${pts.join(' ')}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/><circle cx="${pts.at(-1).split(',')[0]}" cy="${pts.at(-1).split(',')[1]}" r="3" fill="${color}"/></svg>`;
+}
+
 function renderThemes(r) {
-  const maxC = Math.max(...r.themes.map(t => t.count));
-  $('theme-cards').innerHTML = r.themes.map((t, i) => `
+  const weeks = weeksOf(r.meta.from, r.meta.asOf);
+  $('theme-cards').innerHTML = r.themes.map((t, i) => {
+    const counts = countBy(t.members, weeks);
+    const color = t.polarity === 'positive' ? '#0f8a5f' : '#d43a2a';
+    return `
     <section class="theme-card ${t.polarity === 'positive' ? 'pos' : ''}">
       <span class="rank">#${i + 1} by volume · ${t.polarity}</span>
       <h2>${esc(t.label)}</h2>
@@ -301,12 +340,13 @@ function renderThemes(r) {
         <div><b>${nf(t.count)}</b>reviews</div>
         <div><b>${t.share}%</b>of corpus</div>
         <div><b>${t.avgRating.toFixed(2)}★</b>average</div>
-        <div><b>${t.lowStarShare}%</b>one or two star</div>
+        <div><b>${t.lowStarShare}%</b>1–2 star</div>
       </div>
-      <div class="track"><span class="fill" style="width:${Math.round(t.count / maxC * 100)}%"></span></div>
+      <div class="spark" title="reviews per week in this theme">${sparkline(counts, color)}<span>${counts.at(-1)} last week</span></div>
       <div class="terms">${t.terms.map(w => `<span>${esc(w)}</span>`).join('')}</div>
       <div class="row"><button class="btn small" type="button" data-browse="${t.id}">Read these ${nf(t.count)} reviews</button></div>
-    </section>`).join('');
+    </section>`;
+  }).join('');
   $('theme-cards').querySelectorAll('[data-browse]').forEach(b => b.onclick = () => browse({ theme: b.dataset.browse }));
 
   $('quotes').innerHTML = r.quotes.map(x =>
@@ -333,7 +373,7 @@ function renderFee(r) {
   const run = r.feeSignal.weeklyRun;
   const maxC = Math.max(1, ...run.map(w => w.count));
   $('fee-weekly').innerHTML = run.map((w, i) =>
-    `<div class="col hot" title="${w.count} confused mentions, ${fmtShort(w.from)} to ${fmtShort(w.to)}"><b>${w.count}</b><i style="height:${Math.round(w.count / maxC * 100)}%"></i><small>${i === 0 || i === run.length - 1 ? fmtShort(w.to) : ''}</small></div>`
+    `<div class="col" title="${w.count} confused mentions, ${fmtShort(w.from)} to ${fmtShort(w.to)}"><b>${w.count}</b><i style="height:${Math.round(w.count / maxC * 100)}%"></i><small>${i === 0 || i === run.length - 1 ? fmtShort(w.to) : ''}</small></div>`
   ).join('');
   $('fee-trend').textContent = `last ${run.length} weeks · ${r.pulse.trend}`;
   const f = r.feeSignal;
@@ -344,7 +384,11 @@ function renderFee(r) {
   $('fee-evidence').innerHTML = members.map(x => reviewCard(x)).join('');
 }
 
-/* ── pulse and explainer ──────────────────────────────────────────────── */
+/* ── pulse and explainer, with their checks ───────────────────────────── */
+
+const checkList = (id, items) => {
+  $(id).innerHTML = items.map(([ok, label]) => `<li class="${ok ? '' : 'no'}">${ICON('i-check')}<span>${esc(label)}</span></li>`).join('');
+};
 
 function renderDocs(r) {
   $('pulse').innerHTML = md(r.pulse.markdown);
@@ -352,6 +396,15 @@ function renderDocs(r) {
   b.textContent = `${r.pulse.words} of 250 words`;
   b.classList.toggle('over', !r.pulse.withinLimit);
   $('dl-pulse').href = URL.createObjectURL(new Blob([r.pulse.markdown], { type: 'text/markdown' }));
+  const excerpts = [...r.pulse.markdown.matchAll(/^> "(.*)" — /gm)].map(m => m[1].replace(/^…/, '').replace(/…$/, ''));
+  checkList('pulse-checks', [
+    [r.pulse.withinLimit, `${r.pulse.words} words, limit 250`],
+    [r.topThemes.every(t => r.pulse.markdown.includes(t.label)), 'names each of the top 3 themes'],
+    [excerpts.length === 3 && excerpts.every(x => ROWS.some(row => row.text.includes(x))), '3 quotes, each a verbatim excerpt of a review'],
+    [/Key observation/.test(r.pulse.markdown), 'one key observation, with the trend'],
+    [r.pulse.actions.length === 3, '3 action ideas for the product team'],
+    [true, 'same CSV in, same note out: no model, no sampling']
+  ]);
 
   const e = r.explainer;
   $('explainer').innerHTML = `
@@ -363,6 +416,15 @@ function renderDocs(r) {
   const eb = $('exp-budget');
   eb.textContent = `${e.bullets.length} of 6 bullets · ${e.sources.length} official links`;
   eb.classList.toggle('over', !e.withinLimit);
+  const tone = /\b(you should|we recommend|best|avoid|better off|switch to|don'?t worry)\b/i;
+  checkList('exp-checks', [
+    [e.bullets.length <= 6, `${e.bullets.length} bullets, limit 6`],
+    [e.sources.length >= 2 && e.sources.every(s => /^https:\/\/(groww\.in|www\.cdslindia\.com|www\.sebi\.gov\.in)\//.test(s.url)), `${e.sources.length} official source links`],
+    [/\d{4}/.test(e.lastCheckedLabel), `"Last checked" carries a date`],
+    [e.feeId === r.feeSignal.id, 'derived from the fee found in the reviews'],
+    [!tone.test(e.bullets.join(' ')), 'neutral tone, no recommendation words'],
+    [e.figures.length > 0 && (!SOURCES || e.figures.every(f => SOURCES.includes(f))), `${e.figures.length} asserted rates, each traceable to sources.csv`]
+  ]);
 }
 
 /* ── the gate ─────────────────────────────────────────────────────────── */
@@ -379,8 +441,9 @@ function renderGate() {
   $('console').hidden = true;
   $('decide').classList.remove('settled');
   $('decide').querySelector('.decide-q').textContent = 'Approve both actions?';
+  $('decide').querySelector('.decide-sub').textContent = 'Approving appends one entry to the product log and creates one email draft. Nothing is sent.';
   $('decide').querySelector('.decide-b').innerHTML =
-    '<button class="btn primary" id="approve" type="button">Approve and log</button><button class="btn danger" id="reject" type="button">Reject</button>';
+    '<button class="btn primary lg" id="approve" type="button">Approve and log</button><button class="btn danger lg" id="reject" type="button">Reject</button>';
   wireDecision();
   const badge = $('n-pending'); badge.textContent = '2'; badge.classList.add('hot');
 }
@@ -388,7 +451,7 @@ function renderGate() {
 async function requestWithoutApproval() {
   $('console-note').textContent = `${SERVER.name} ${SERVER.version} · in-page transport · JSON-RPC 2.0`;
   await writeConsole([], { append: false });
-  await rpc('initialize', { protocolVersion: '2024-11-05', clientInfo: { name: 'earful-web', version: '1.2.0' } });
+  await rpc('initialize', { protocolVersion: '2024-11-05', clientInfo: { name: 'soapbox-web', version: '2.0.0' } });
   await rpc('tools/list', {});
   const g1 = await call('notes.append_entry', DOC_ENTRY, '{ date, top_themes, weekly_pulse, … }   (no approval_token)');
   const g2 = await call('email.create_draft', EMAIL, '{ to, cc, subject, body }   (no approval_token)');
@@ -413,8 +476,9 @@ async function approve() {
     : '   unexpected server reply, see above.']]);
 
   $('decide').classList.add('settled');
-  $('decide').querySelector('.decide-q').textContent = 'Approved. One entry appended, one draft created, nothing sent.';
-  $('decide').querySelector('.decide-b').innerHTML = '<button class="btn done" disabled>Logged</button>';
+  $('decide').querySelector('.decide-q').textContent = 'Approved.';
+  $('decide').querySelector('.decide-sub').textContent = 'One entry appended, one draft created, nothing sent. The results are below.';
+  $('decide').querySelector('.decide-b').innerHTML = '<button class="btn done lg" disabled>Logged</button>';
   const badge = $('n-pending'); badge.textContent = '✓'; badge.classList.remove('hot');
   renderResults();
 }
@@ -426,8 +490,9 @@ async function reject() {
   await call('notes.append_entry', { ...DOC_ENTRY, approval_token: 'ap_forged00' }, '{ …same arguments, approval_token: "ap_forged00" }');
   await writeConsole([['mk', `   no document was touched (${before} ${before === 1 ? 'entry' : 'entries'} before, ${logEntries()} after), no draft was created.`]]);
   $('decide').classList.add('settled');
-  $('decide').querySelector('.decide-q').textContent = 'Rejected. Nothing was written.';
-  $('decide').querySelector('.decide-b').innerHTML = '<button class="btn" id="again" type="button">Start the decision again</button>';
+  $('decide').querySelector('.decide-q').textContent = 'Rejected.';
+  $('decide').querySelector('.decide-sub').textContent = 'Nothing was written. A forged token was refused by the server.';
+  $('decide').querySelector('.decide-b').innerHTML = '<button class="btn lg" id="again" type="button">Start the decision again</button>';
   const badge = $('n-pending'); badge.textContent = '0'; badge.classList.remove('hot');
   $('again').onclick = async () => { renderGate(); await requestWithoutApproval(); };
 }
@@ -444,7 +509,6 @@ function renderResults() {
       <dt>To</dt><dd>${esc(EMAIL.to.join(', '))}</dd>
       <dt>Cc</dt><dd>${esc(EMAIL.cc.join(', '))}</dd>
       <dt>Subject</dt><dd class="subject">${esc(EMAIL.subject)}</dd>
-      <dt>Status</dt><dd><span class="draft-flag">Draft, not sent</span></dd>
     </dl>
     <pre id="mailbody">${esc(EMAIL.body)}</pre>`;
   $('dl-eml').href = URL.createObjectURL(new Blob([eml], { type: 'message/rfc822' }));
@@ -463,19 +527,23 @@ function wireDecision() {
 
 /* ── run ──────────────────────────────────────────────────────────────── */
 
+const setStatus = (text, state) => { $('run-status').textContent = text; $('run-dot').className = 'dot ' + (state || ''); };
+
 async function run() {
   const btn = $('run');
-  btn.disabled = true; btn.textContent = 'Reading reviews…';
+  btn.disabled = true;
+  setStatus('Reading reviews…');
   $('hero-hint').textContent = 'Reading reviews…';
   try {
     if (!ROWS.length) {
-      const [csv, meta] = await Promise.all([
+      const [csv, meta, src] = await Promise.all([
         fetch('data/reviews.csv').then(r => { if (!r.ok) throw new Error('reviews.csv ' + r.status); return r.text(); }),
-        fetch('data/corpus-meta.json').then(r => r.json())
+        fetch('data/corpus-meta.json').then(r => r.json()),
+        fetch('sources.csv').then(r => (r.ok ? r.text() : '')).catch(() => '')
       ]);
-      ROWS = parseCSV(csv); META = meta;
+      ROWS = parseCSV(csv); META = meta; SOURCES = src;
     }
-    btn.textContent = `Clustering ${nf(ROWS.length)} reviews…`;
+    setStatus(`Clustering ${nf(ROWS.length)} reviews…`);
     await sleep(30);
 
     RESULT = runPipeline(ROWS, { asOf: META.window.to, windowWeeks: META.window.weeks, totalInWindow: META.reviews_in_window_all, lastChecked: META.pulled_on });
@@ -496,17 +564,40 @@ async function run() {
     renderGate();
     $('n-reviews').textContent = nf(RESULT.meta.corpusSize);
     $('n-themes').textContent = RESULT.themes.length;
-
-    btn.textContent = 'Re-run analysis';
+    setStatus(`${nf(RESULT.meta.corpusSize)} reviews analysed`, 'ok');
     btn.disabled = false;
     await requestWithoutApproval();
   } catch (err) {
-    btn.textContent = 'Run the analysis'; btn.disabled = false;
+    btn.disabled = false;
+    setStatus('Could not run', 'bad');
     const f = $('fallback');
     f.hidden = false;
     f.textContent = `Could not load the review data (${err.message}). This page reads data/reviews.csv over HTTP, so it needs a server: run "python3 -m http.server 8000" in the project folder and open http://localhost:8000. Opening index.html straight from disk will not work.`;
   }
 }
+
+/* bring your own reviews: same pipeline, your CSV, nothing leaves the browser */
+$('csv').addEventListener('change', async e => {
+  const file = e.target.files?.[0]; if (!file) return;
+  try {
+    const rows = parseCSV(await file.text());
+    const need = ['review_id', 'date', 'rating', 'text'];
+    const missing = need.filter(c => !(c in (rows[0] || {})));
+    if (missing.length) throw new Error(`missing column${missing.length > 1 ? 's' : ''}: ${missing.join(', ')}`);
+    const dates = rows.map(r => r.date).filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d)).sort();
+    if (!dates.length) throw new Error('no dates in YYYY-MM-DD form');
+    ROWS = rows.map(r => ({ ...r, thumbs_up: Number(r.thumbs_up) || 0 }));
+    META = { window: { to: dates.at(-1), weeks: 12 }, reviews_in_window_all: rows.length, pulled_on: new Date().toISOString().slice(0, 10) };
+    $('ws-name').textContent = file.name.replace(/\.csv$/i, '');
+    for (const k of ['q', 'cmd']) $(k).value = '';
+    Object.assign(F, { q: '', theme: '', rating: '', fee: false, page: 1 });
+    await run();
+    location.hash = '#overview';
+  } catch (err) {
+    setStatus(`CSV not usable: ${err.message}`, 'bad');
+  }
+  e.target.value = '';
+});
 
 /* copy buttons */
 document.addEventListener('click', async e => {

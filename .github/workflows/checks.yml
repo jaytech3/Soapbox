@@ -20,5 +20,5 @@ jobs:
       - name: Headless run of the demo client, approving
         run: node mcp/client-demo.js --approve
         env:
-          EARFUL_DOC: /tmp/earful-ci/product-pulse-log.md
-          EARFUL_OUT: /tmp/earful-ci
+          SOAPBOX_DOC: /tmp/soapbox-ci/product-pulse-log.md
+          SOAPBOX_OUT: /tmp/soapbox-ci

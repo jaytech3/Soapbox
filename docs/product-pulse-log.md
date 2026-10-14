@@ -1,6 +1,6 @@
 # Product pulse log
 
-One entry per weekly run. Appended by the Earful MCP server after human approval.
+One entry per weekly run. Appended by the Soapbox MCP server after human approval.
 
 ---
 
@@ -59,4 +59,4 @@ One entry per weekly run. Appended by the Earful MCP server after human approval
 - https://groww.in/pricing
 - https://groww.in/help/stocks/searchable/when-are-dp-charges-levied
 
-_Logged via earful-mcp after human approval._
+_Logged via soapbox-mcp after human approval._

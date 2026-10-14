@@ -1,5 +1,5 @@
 /* ──────────────────────────────────────────────────────────────────────────
-   Earful — review intelligence engine
+   Soapbox — review intelligence engine
    One module, used unchanged by the browser prototype (index.html) and by
    the headless runner (cli/run.js). No dependencies, no network, no LLM:
    every number below is computed from data/reviews.csv, so two runs of the
@@ -7,7 +7,7 @@
    MCP payloads.
    ────────────────────────────────────────────────────────────────────────── */
 
-export const VERSION = '1.2.0';
+export const VERSION = '2.0.0';
 
 /* ── 1. CSV parsing ─────────────────────────────────────────────────────── */
 

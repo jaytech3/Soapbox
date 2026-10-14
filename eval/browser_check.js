@@ -20,7 +20,7 @@ import { fileURLToPath } from 'url';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SHOTS = process.argv.includes('--shots');
 const OUT = path.join(ROOT, 'docs', 'screenshots');
-const LOG_KEY = 'earful.product-pulse-log.md', DRAFT_KEY = 'earful.email-draft.eml';
+const LOG_KEY = 'soapbox.product-pulse-log.md', DRAFT_KEY = 'soapbox.email-draft.eml';
 
 let pw;
 try { pw = await import('playwright'); }
@@ -66,8 +66,9 @@ try {
   check('rating mix has five bars', (await page.$$('#rating-mix .bar')).length === 5);
   check('twelve weekly columns', (await page.$$('#weekly-volume .col')).length === 12);
   check('five themes listed', (await page.$$('#theme-list li')).length === 5);
-  check('headline names the fee issue', /Brokerage|charge/i.test(await page.textContent('#headline')));
-  check('tab badges filled', /\d/.test(await page.textContent('#n-reviews')) && (await page.textContent('#n-pending')).trim() === '2');
+  check('headline names the fee issue', /Brokerage|charge/i.test(await page.textContent('#headline-title')) && (await page.$$('#headline-facts div')).length === 4);
+  check('sidebar badges filled', /\d/.test(await page.textContent('#n-reviews')) && (await page.textContent('#n-pending')).trim() === '2');
+  check('run status reports the corpus', /reviews analysed/.test(await page.textContent('#run-status')));
   await shot(page, '1-overview.png');
 
   /* reviews */
@@ -75,6 +76,7 @@ try {
   const total = await page.textContent('#review-count');
   check('reviews view lists the corpus', /^3,2\d\d of 3,2\d\d reviews/.test(total.trim()), total.trim());
   check('first page shows 40 review cards', (await page.$$('#review-list .review')).length === 40);
+  check('filter summary tiles render', (await page.$$('#rv-stats > div')).length === 4);
   await page.fill('#q', 'dp charge');
   await page.waitForTimeout(150);
   const n1 = await page.$$('#review-list .review');
@@ -89,9 +91,18 @@ try {
   await page.waitForTimeout(150);
   check('show more appends a page', (await page.$$('#review-list .review')).length === 80);
 
+  /* the sidebar search is a shortcut into the reviews view */
+  await go(page, 'overview');
+  await page.fill('#cmd', 'withdraw');
+  await page.waitForSelector('#view-reviews:not([hidden])');
+  await page.waitForTimeout(150);
+  check('sidebar search opens reviews filtered', /"withdraw"/.test(await page.textContent('#review-count')) && (await page.$$('#review-list mark')).length > 0);
+  await page.fill('#cmd', '');
+
   /* themes */
   await go(page, 'themes');
   check('five theme cards', (await page.$$('#theme-cards .theme-card')).length === 5);
+  check('each theme card carries a sparkline', (await page.$$('#theme-cards .spark svg')).length === 5);
   check('three quotes rendered', (await page.$$('#quotes .quote')).length === 3);
   await shot(page, '3-themes.png');
   await page.click('#theme-cards [data-browse="charges"]');
@@ -109,16 +120,18 @@ try {
   await go(page, 'pulse');
   check('pulse within budget', /^\d+ of 250 words$/.test((await page.textContent('#pulse-budget')).trim()) && !(await page.$('#pulse-budget.over')));
   check('pulse carries three quotes', (await page.$$('#pulse blockquote')).length === 3);
+  check('pulse checks all pass', (await page.$$('#pulse-checks li')).length === 6 && (await page.$$('#pulse-checks li.no')).length === 0);
   await shot(page, '5-pulse.png');
   await go(page, 'explainer');
   check('explainer has six bullets and two links', (await page.$$('#explainer > ul > li')).length === 6 && (await page.$$('#explainer .srcs a')).length === 2);
   check('explainer carries Last checked', /Last checked: \d+ \w+ \d{4}/.test(await page.textContent('#explainer')));
+  check('explainer checks all pass', (await page.$$('#exp-checks li')).length === 6 && (await page.$$('#exp-checks li.no')).length === 0);
   await shot(page, '6-explainer.png');
 
   /* the gate */
   await go(page, 'approve');
   const transcript1 = await page.textContent('#console-out');
-  check('server initialised in-page', /serverInfo.*earful-mcp/.test(transcript1));
+  check('server initialised in-page', /serverInfo.*soapbox-mcp/.test(transcript1));
   check('both tools listed', /notes\.append_entry.*email\.create_draft/.test(transcript1));
   const tokens = [...transcript1.matchAll(/"approval_token":"([0-9a-f]{32})"/g)].map(m => m[1]);
   check('both calls refused with a computed token', tokens.length === 2 && tokens[0] !== tokens[1], tokens.map(t => t.slice(0, 8) + '…').join(' '));
@@ -159,6 +172,16 @@ try {
   check('reject: forged token refused by the server', /does not match these arguments/.test(t2));
   check('reject: document unchanged', a2 === b2, `${b2} → ${a2}`);
   if (SHOTS) { await page2.$eval('#console', e => e.scrollIntoView({ block: 'start' })); await page2.screenshot({ path: path.join(OUT, '10-rejected.png') }); }
+
+  /* bring-your-own CSV: the same file through the upload path must run end to end */
+  const page4 = await browser.newPage({ viewport: { width: 1280, height: 860 }, reducedMotion: 'reduce' });
+  await page4.goto(base, { waitUntil: 'networkidle' });
+  await waitConsole(page4, /waiting for a human/);
+  await page4.setInputFiles('#csv', path.join(ROOT, 'data', 'reviews.csv'));
+  await page4.waitForFunction(() => document.querySelector('#ws-name')?.textContent === 'reviews', null, { timeout: 30000 });
+  await page4.waitForFunction(() => /reviews analysed/.test(document.querySelector('#run-status')?.textContent || ''), null, { timeout: 60000 });
+  check('an uploaded CSV runs through the same pipeline', (await page4.$$('#theme-cards .theme-card')).length === 5 && /\d{4}/.test(await page4.textContent('#hero-date')));
+  await page4.close();
 
   /* phone width: no horizontal overflow */
   const page3 = await browser.newPage({ viewport: { width: 390, height: 844 }, reducedMotion: 'reduce' });
